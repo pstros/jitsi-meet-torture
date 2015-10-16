@@ -241,7 +241,7 @@ public class AuthSetupConference
       // The dialog creates multiple elements of the password required dialog box
       // so for now we will assume the second element is correct one
       List<WebElement> usernameElem = participant.findElements(By.cssSelector("[name='username']"));
-      List<WebElement> passwordElem = participant.findElements(By.xpath("[name='password']"));
+      List<WebElement> passwordElem = participant.findElements(By.cssSelector("[name='password']"));
 
       usernameElem.get(1).sendKeys(username);
       passwordElem.get(1).sendKeys(password);
