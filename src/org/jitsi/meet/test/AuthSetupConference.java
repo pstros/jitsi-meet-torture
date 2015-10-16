@@ -184,6 +184,7 @@ public class AuthSetupConference
         String authButtonName = "jqi_state0_" +
                 "buttonspandatai18ndialogIamHostIamthehostspan";
 
+
         TestUtils.waitForElementByXPath(
             moderator, "//button[@name='" + authButtonName + "']", 15);
 
@@ -191,14 +192,23 @@ public class AuthSetupConference
 
         authButton.click();
 
-        // Redirected to Idp selection
-        shibbolethIdpSelect(
+        // Redirected to Idp selection if a idp information is given.  Otherwise
+        // use the default username/password authentication
+        if (idpSelectListId == null && idpName == null && idpSubmitBtnName == null)
+        {
+          usernamePasswordAuth(moderator, username, password);
+        }
+        else
+        {
+          shibbolethIdpSelect(
             moderator, idpSelectListId, idpName, idpSubmitBtnName);
 
-        // IdpLogin
-        shibbolethIdpLogin(
+          // IdpLogin
+          shibbolethIdpLogin(
             moderator, usernameInputId, passwordInputId, loginBtnName,
             username,  password);
+        }
+
     }
 
     private void shibbolethIdpSelect(WebDriver participant,
@@ -216,6 +226,30 @@ public class AuthSetupConference
         submit.click();
     }
 
+    private void usernamePasswordAuth(WebDriver participant,
+                                     String username,
+                                     String password)
+    {
+      String authLoginButtonName = "jqi_login_" +
+            "buttonspandatai18ndialogOkOkspan";
+
+      TestUtils.waitForElementByXPath(
+          participant, "//input[@name='username']", 15);
+
+      System.out.println("found element?");
+
+      // The dialog creates multiple elements of the password required dialog box
+      // so for now we will assume the second element is correct one
+      List<WebElement> usernameElem = participant.findElements(By.xpath("//[@name='username']"));
+      List<WebElement> passwordElem = participant.findElements(By.xpath("//[@name='password']"));
+
+      usernameElem.get(1).sendKeys(username);
+      passwordElem.get(1).sendKeys(password);
+
+      List <WebElement> submit = participant.findElements(By.name(authLoginButtonName));
+      submit.get(1).click();
+    }
+
     private void shibbolethIdpLogin( WebDriver participant,
                                      String    usernameInputId,
                                      String    passwordInputId,
@@ -225,6 +259,7 @@ public class AuthSetupConference
     {
         TestUtils.waitForElementByXPath(
             participant, "//input[@id='" + usernameInputId + "']", 15);
+
 
         WebElement usernameElem
             = participant.findElement(By.id(usernameInputId));

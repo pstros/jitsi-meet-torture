@@ -33,11 +33,17 @@ public class TestsRunner
     private static final String TESTS_TO_RUN_PNAME = "jitsi-meet.tests.toRun";
 
     /**
-     * The name of the property which controls the set of tests to be excluded
+     * The name of the property which controls the SetupConference of tests to be excluded
      * (i.e. not run).
      */
     private static final String TESTS_TO_EXCLUDE_PNAME
             = "jitsi-meet.tests.toExclude";
+
+    /**
+     * The name of the property to be used if testing with auth
+     */
+    private static final String AUTH_PROPERTIES_PNAME
+            = "jitsi-meet.auth.properties";
 
     /**
      * The default list of tests to run. This does not include SetupConference
@@ -158,8 +164,19 @@ public class TestsRunner
         // once in the beginning and end of the tests. They could potentially be
         // moved to setUp() and tearDown().
         while (testsToRun.remove(SetupConference.class.getSimpleName()));
+        while (testsToRun.remove(AuthSetupConference.class.getSimpleName()));
         while (testsToRun.remove(DisposeConference.class.getSimpleName()));
-        testsToRun.add(0, SetupConference.class.getSimpleName());
+
+        String authPropertiesFile = System.getProperty(AUTH_PROPERTIES_PNAME);
+        if (authPropertiesFile == null)
+        {
+          testsToRun.add(0, SetupConference.class.getSimpleName());
+        }
+        else
+        {
+          testsToRun.add(0, AuthSetupConference.class.getSimpleName());
+        }
+
         testsToRun.add(DisposeConference.class.getSimpleName());
 
         return testsToRun;
