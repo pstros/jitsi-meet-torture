@@ -236,8 +236,6 @@ public class AuthSetupConference
       TestUtils.waitForElementByXPath(
           participant, "//input[@name='username']", 15);
 
-      System.out.println("found element?");
-
       // The dialog creates multiple elements of the password required dialog box
       // so for now we will assume the second element is correct one
       List<WebElement> usernameElem = participant.findElements(By.cssSelector("[name='username']"));
