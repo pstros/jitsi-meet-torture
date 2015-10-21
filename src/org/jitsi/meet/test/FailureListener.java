@@ -35,6 +35,11 @@ public class FailureListener
     extends XMLJUnitResultFormatter
 {
     /**
+     * name of the property which defines the directory for the test reports
+     */
+    private static final String TEST_REPORT_DIR = "test.reports.dir";
+
+    /**
      * The folder where the screenshost will be saved.
      */
     private File outputScreenshotsParentFolder = null;
@@ -112,9 +117,11 @@ public class FailureListener
     public void setOutput(OutputStream out)
     {
         // default reports folder
-        outputScreenshotsParentFolder = new File("test-reports/screenshots");
+        String reportsDir = System.getProperty(TEST_REPORT_DIR);
 
-        outputHtmlSourceParentFolder = new File("test-reports/html-sources");
+        outputScreenshotsParentFolder = new File(reportsDir + "/screenshots");
+
+        outputHtmlSourceParentFolder = new File(reportsDir + "/html-sources");
         outputHtmlSourceParentFolder.mkdirs();
 
         // skip output so we do not print in console
