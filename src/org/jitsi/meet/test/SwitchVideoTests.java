@@ -235,7 +235,7 @@ public class SwitchVideoTests
         driver.findElement(By.xpath(remoteThumbXpath))
             .click();
 
-        TestUtils.waitMillis(1000);
+        TestUtils.waitMillis(10000);
 
         if(ConferenceFixture.getBrowserType(driver).equals(
             ConferenceFixture.BrowserType.firefox))
