@@ -205,7 +205,7 @@ public class SwitchVideoTest
         driver.findElement(By.xpath(remoteThumbXpath))
             .click();
 
-        TestUtils.waitMillis(1000);
+        TestUtils.waitMillis(10000);
 
         // Obtain the remote video src *after* we have clicked the thumbnail
         // and have waited. With simulcast enabled, the remote stream may
