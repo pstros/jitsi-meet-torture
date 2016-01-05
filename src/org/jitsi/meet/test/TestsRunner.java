@@ -69,6 +69,7 @@ public class TestsRunner
         DEFAULT_TESTS_TO_RUN.add(LockRoomTest.class.getSimpleName());
 
         DEFAULT_TESTS_TO_RUN.add(UDPTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(SinglePortTest.class.getSimpleName());
         DEFAULT_TESTS_TO_RUN.add(TCPTest.class.getSimpleName());
 
         DEFAULT_TESTS_TO_RUN.add(ActiveSpeakerTest.class.getSimpleName());
@@ -78,6 +79,11 @@ public class TestsRunner
         DEFAULT_TESTS_TO_RUN.add(DataChannelTest.class.getSimpleName());
         DEFAULT_TESTS_TO_RUN.add(ContactListTest.class.getSimpleName());
         DEFAULT_TESTS_TO_RUN.add(VideoLayoutTest.class.getSimpleName());
+        //DEFAULT_TESTS_TO_RUN.add(
+        //    DesktopSharingImitationTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(DesktopSharingTest.class.getSimpleName());
+        if(Boolean.getBoolean(RestTests.ENABLE_REST_API_TESTS))
+            DEFAULT_TESTS_TO_RUN.add(RestTests.class.getSimpleName());
     }
 
     /**

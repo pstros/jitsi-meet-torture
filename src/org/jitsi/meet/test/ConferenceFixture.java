@@ -28,6 +28,7 @@ import org.openqa.selenium.support.ui.*;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.*;
 
 import static org.junit.Assert.*;
@@ -81,8 +82,14 @@ public class ConferenceFixture
     /**
      * The property to change tested browser for the second participant.
      */
-        public static final String BROWSER_THIRDP_NAME_PROP
-        = "browser.third.participant";
+    public static final String BROWSER_THIRDP_NAME_PROP
+    = "browser.third.participant";
+
+    /**
+     * The property to disable no-sandbox parameter for chrome.
+     */
+    public static final String DISABLE_NOSANBOX_PARAM
+        = "chrome.disable.nosanbox";
 
     /**
      * The javascript code which returns {@code true} iff the ICE connection
@@ -92,6 +99,17 @@ public class ConferenceFixture
         "try {" +
             "var jingle = APP.xmpp.getConnection().jingle.activecall;" +
             "if (jingle.peerconnection.iceConnectionState === 'connected')" +
+                "return true;" +
+        "} catch (err) { return false; }";
+
+    /**
+     * The javascript code which returns {@code true} iff the ICE connection
+     * is in state 'disconnected'.
+     */
+    public static final String ICE_DISCONNECTED_CHECK_SCRIPT =
+        "try {" +
+            "var jingle = APP.xmpp.getConnection().jingle.activecall;" +
+            "if (jingle.peerconnection.iceConnectionState === 'disconnected')" +
                 "return true;" +
         "} catch (err) { return false; }";
 
@@ -301,7 +319,7 @@ public class ConferenceFixture
     {
         WebDriver wd = startDriverInstance(browser, participant);
 
-        wd.manage().timeouts().pageLoadTimeout(60, TimeUnit.SECONDS);
+        //wd.manage().timeouts().pageLoadTimeout(60, TimeUnit.SECONDS);
 
         // just wait the instance to start before doing some stuff
         // can kick a renderer bug hanging
@@ -351,14 +369,35 @@ public class ConferenceFixture
         }
         else
         {
+            System.setProperty("webdriver.chrome.verboseLogging", "true");
+            System.setProperty("webdriver.chrome.logfile",
+                FailureListener.createLogsFolder() +
+                "/chrome-console-" + getParticipantName(participant) + ".log");
+
             DesiredCapabilities caps = DesiredCapabilities.chrome();
             LoggingPreferences logPrefs = new LoggingPreferences();
             logPrefs.enable(LogType.BROWSER, Level.ALL);
             caps.setCapability(CapabilityType.LOGGING_PREFS, logPrefs);
 
-            ChromeOptions ops = new ChromeOptions();
+            final ChromeOptions ops = new ChromeOptions();
             ops.addArguments("use-fake-ui-for-media-stream");
             ops.addArguments("use-fake-device-for-media-stream");
+            ops.addArguments("disable-extensions");
+            ops.addArguments("disable-plugins");
+
+            String disProp = System.getProperty(DISABLE_NOSANBOX_PARAM);
+            if(disProp == null && !Boolean.parseBoolean(disProp))
+            {
+                ops.addArguments("no-sandbox");
+                ops.addArguments("disable-setuid-sandbox");
+            }
+
+            // starting version 46 we see crashes of chrome GPU process when
+            // running in headless mode
+            // which leaves the browser opened and selenium hang forever.
+            // There are reports that in older version crashes like that will
+            // fallback to software graphics, we try to disable gpu for now
+            ops.addArguments("disable-gpu");
 
             String browserProp;
             if (participant == Participant.secondParticipantDriver)
@@ -380,10 +419,51 @@ public class ConferenceFixture
                     "use-file-for-fake-audio-capture=" + fakeStreamAudioFName);
             }
 
-            ops.addArguments("vmodule=\"*media/*=3,*turn*=3\"");
+            //ops.addArguments("vmodule=\"*media/*=3,*turn*=3\"");
+            ops.addArguments("enable-logging");
+            ops.addArguments("vmodule=*=3");
 
             caps.setCapability(ChromeOptions.CAPABILITY, ops);
 
+            try
+            {
+                final ExecutorService pool = Executors.newFixedThreadPool(1);
+                // we will retry four times for 1 minute to obtain
+                // the chrome driver, on headless environments chrome hangs
+                // and we wait forever
+                for (int i = 0; i < 4; i++)
+                {
+                    try
+                    {
+                        ChromeDriver res =
+                            pool.submit(
+                                new Callable<ChromeDriver>()
+                            {
+                                @Override
+                                public ChromeDriver call() throws Exception
+                                {
+                                    return new ChromeDriver(ops);
+                                }
+                            }).get(1, TimeUnit.MINUTES);
+                        if(res != null)
+                            return res;
+                    }
+                    catch (TimeoutException te)
+                    {
+                        System.err.println("Timeout waiting for "
+                            + "chrome instance! We will retry now, this was our"
+                            + "attempt " + i);
+                    }
+
+                }
+            }
+            catch (InterruptedException | ExecutionException e)
+            {
+                e.printStackTrace();
+            }
+
+            // keep the old code
+            System.err.println("Just create ChromeDriver, may hang!");
             return new ChromeDriver(ops);
         }
     }
@@ -480,12 +560,51 @@ public class ConferenceFixture
     }
 
     /**
-     * Waits for the given participant to enter the ICE 'connected' state.
+     * Waits 30 sec for the given participant to enter the ICE 'connected'
+     * state.
+     *
      * @param participant the participant.
      */
     public static void waitForIceCompleted(WebDriver participant)
     {
-        TestUtils.waitForBoolean(participant, ICE_CONNECTED_CHECK_SCRIPT, 30);
+        waitForIceCompleted(participant, 30);
+    }
+
+    /**
+     * Waits 30 sec for the given participant to enter the ICE 'connected'
+     * state.
+     *
+     * @param participant the participant.
+     * @param timeout timeout in seconds.
+     */
+    public static void waitForIceCompleted(WebDriver participant, long timeout)
+    {
+        TestUtils.waitForBoolean(
+            participant, ICE_CONNECTED_CHECK_SCRIPT, timeout);
+    }
+
+    /**
+     * Waits 30 sec for the given participant to enter the ICE 'disconnected'
+     * state.
+     *
+     * @param participant the participant.
+     */
+    public static void waitForIceDisconnected(WebDriver participant)
+    {
+        waitForIceDisconnected(participant, 30);
+    }
+
+    /**
+     * Waits for the given participant to enter the ICE 'disconnected' state.
+     *
+     * @param participant the participant.
+     * @param timeout timeout in seconds.
+     */
+    public static void waitForIceDisconnected(WebDriver    participant,
+                                              long         timeout)
+    {
+        TestUtils.waitForBoolean(
+            participant, ICE_DISCONNECTED_CHECK_SCRIPT, timeout);
     }
 
     /**
@@ -748,6 +867,33 @@ public class ConferenceFixture
         waitForParticipantToJoinMUC(thirdParticipant, 10);
         waitForIceCompleted(thirdParticipant);
         waitForSendReceiveData(thirdParticipant);
+        waitForRemoteStreams(thirdParticipant, 2);
+    }
+
+    /**
+     * Waits for number of remote streams.
+     * @param participant the driver to use for the check.
+     * @param n number of remote streams to wait for
+     */
+    public static void waitForRemoteStreams(
+            final WebDriver participant,
+            final int n)
+    {
+        new WebDriverWait(participant, 15)
+            .until(new ExpectedCondition<Boolean>()
+            {
+                public Boolean apply(WebDriver d)
+                {
+                    long streams = (Long)((JavascriptExecutor) participant)
+                        .executeScript("return "
+                            + "Object.keys(APP.RTC.remoteStreams).length;");
+
+                    if(streams >= n)
+                        return true;
+                    else
+                        return false;
+                }
+            });
     }
 
     /**
@@ -793,6 +939,34 @@ public class ConferenceFixture
             return "secondParticipant";
         }
         else if (thirdParticipant == driver)
+        {
+            return "thirdParticipant";
+        }
+        else
+        {
+            return "unknownDriverInstance";
+        }
+    }
+
+    /**
+     * Returns human readable name of <tt>Participant</tt> instance.
+     * @param p the instance of <tt>Participant</tt> for which we want to get
+     *               human readable name.
+     */
+    public static String getParticipantName(Participant p)
+    {
+        if (p == null)
+            return "nullDriverInstance";
+
+        if (Participant.ownerDriver == p)
+        {
+            return "owner";
+        }
+        else if (Participant.secondParticipantDriver == p)
+        {
+            return "secondParticipant";
+        }
+        else if (Participant.thirdParticipantDriver == p)
         {
             return "thirdParticipant";
         }
