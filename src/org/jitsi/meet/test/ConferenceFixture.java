@@ -30,6 +30,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.TimeoutException;
 import java.util.logging.*;
+import java.net.URL;
+import java.net.MalformedURLException;
 
 import static org.junit.Assert.*;
 
@@ -42,6 +44,11 @@ import static org.junit.Assert.*;
  */
 public class ConferenceFixture
 {
+    /**
+     * property of grid url to run the browsers on
+     */
+    public static final String SELENIUM_GRID_URL = "jitsi-meet.selenium.grid.url";
+
     public static final String JITSI_MEET_URL_PROP = "jitsi-meet.instance.url";
 
     public static final String FAKE_AUDIO_FNAME_PROP
@@ -136,6 +143,11 @@ public class ConferenceFixture
                 return BrowserType.valueOf(browser);
         }
     }
+
+    /**
+     * The grid url to use
+     */
+    public static URL gridUrl;
 
     /**
      * The current room name used.
@@ -317,7 +329,22 @@ public class ConferenceFixture
     private static WebDriver startDriver(BrowserType browser,
         Participant participant)
     {
-        WebDriver wd = startDriverInstance(browser, participant);
+        String seleniumGridURL = System.getProperty(SELENIUM_GRID_URL);
+        if (seleniumGridURL != null)
+        {
+            try
+            {
+                gridUrl = new URL(seleniumGridURL);
+            }
+            catch (MalformedURLException e)
+            {
+                System.err.println("Malformed URL for selenium grid, will attempt local driver");
+            }
+        }
+
+        WebDriver wd = (gridUrl == null)
+                ? startDriverInstance(browser, participant)
+                : startRemoteDriverInstance(browser);
 
         //wd.manage().timeouts().pageLoadTimeout(60, TimeUnit.SECONDS);
 
@@ -326,6 +353,75 @@ public class ConferenceFixture
         TestUtils.waitMillis(1000);
 
         return wd;
+    }
+
+    private static FirefoxProfile getFirefoxProfile()
+    {
+        FirefoxProfile profile = new FirefoxProfile();
+        profile.setPreference("media.navigator.permission.disabled", true);
+        profile.setAcceptUntrustedCertificates(true);
+        return profile;
+    }
+
+    private static ChromeOptions getChromeOptions()
+    {
+        final ChromeOptions options = new ChromeOptions();
+        options.addArguments("use-fake-ui-for-media-stream");
+        options.addArguments("use-fake-device-for-media-stream");
+        options.addArguments("disable-extensions");
+        options.addArguments("disable-plugins");
+
+        String disableProperty = System.getProperty(DISABLE_NOSANBOX_PARAM);
+        if(disableProperty == null && !Boolean.parseBoolean(disableProperty))
+        {
+            options.addArguments("no-sandbox");
+            options.addArguments("disable-setuid-sandbox");
+        }
+
+        // starting version 46 we see crashes of chrome GPU process when
+        // running in headless mode
+        // which leaves the browser opened and selenium hang forever.
+        // There are reports that in older version crashes like that will
+        // fallback to software graphics, we try to disable gpu for now
+        options.addArguments("disable-gpu");
+
+        if (fakeStreamAudioFName != null)
+        {
+            options.addArguments(
+                    "use-file-for-fake-audio-capture=" + fakeStreamAudioFName);
+        }
+
+        //options.addArguments("vmodule=\"*media/*=3,*turn*=3\"");
+        options.addArguments("enable-logging");
+        options.addArguments("vmodule=*=3");
+
+        return options;
+    }
+
+    /**
+     * Starts a remote <tt>WebDriver</tt> instance
+     * @param browser the brower type
+     * @return the <tt>WebDriver</tt> instance
+     */
+    private static WebDriver startRemoteDriverInstance(BrowserType browser)
+    {
+        DesiredCapabilities capabilities = null;
+        switch (browser)
+        {
+            case firefox:
+                capabilities = DesiredCapabilities.firefox();
+                capabilities.setCapability(FirefoxDriver.PROFILE, getFirefoxProfile());
+                break;
+            case chrome:
+                capabilities = DesiredCapabilities.chrome();
+                capabilities.setCapability(ChromeOptions.CAPABILITY, getChromeOptions());
+                break;
+            default:
+                //TODO throw a error that the browser is not supported
+                break;
+        }
+
+        return new RemoteWebDriver(gridUrl, capabilities);
     }
 
     /**
@@ -349,11 +445,7 @@ public class ConferenceFixture
                     System.setProperty("webdriver.firefox.bin", browserBinary);
             }
 
-            FirefoxProfile profile = new FirefoxProfile();
-            profile.setPreference("media.navigator.permission.disabled", true);
-            profile.setAcceptUntrustedCertificates(true);
-
-            return new FirefoxDriver(profile);
+            return new FirefoxDriver(getFirefoxProfile());
         }
         else if (browser == BrowserType.safari)
         {
@@ -379,25 +471,7 @@ public class ConferenceFixture
             logPrefs.enable(LogType.BROWSER, Level.ALL);
             caps.setCapability(CapabilityType.LOGGING_PREFS, logPrefs);
 
-            final ChromeOptions ops = new ChromeOptions();
-            ops.addArguments("use-fake-ui-for-media-stream");
-            ops.addArguments("use-fake-device-for-media-stream");
-            ops.addArguments("disable-extensions");
-            ops.addArguments("disable-plugins");
-
-            String disProp = System.getProperty(DISABLE_NOSANBOX_PARAM);
-            if(disProp == null && !Boolean.parseBoolean(disProp))
-            {
-                ops.addArguments("no-sandbox");
-                ops.addArguments("disable-setuid-sandbox");
-            }
-
-            // starting version 46 we see crashes of chrome GPU process when
-            // running in headless mode
-            // which leaves the browser opened and selenium hang forever.
-            // There are reports that in older version crashes like that will
-            // fallback to software graphics, we try to disable gpu for now
-            ops.addArguments("disable-gpu");
+            final ChromeOptions ops = getChromeOptions();
 
             String browserProp;
             if (participant == Participant.secondParticipantDriver)
@@ -413,18 +487,7 @@ public class ConferenceFixture
                     ops.setBinary(binaryFile);
             }
 
-            if (fakeStreamAudioFName != null)
-            {
-                ops.addArguments(
-                    "use-file-for-fake-audio-capture=" + fakeStreamAudioFName);
-            }
-
-            //ops.addArguments("vmodule=\"*media/*=3,*turn*=3\"");
-            ops.addArguments("enable-logging");
-            ops.addArguments("vmodule=*=3");
-
             caps.setCapability(ChromeOptions.CAPABILITY, ops);
-
             try
             {
                 final ExecutorService pool = Executors.newFixedThreadPool(1);
