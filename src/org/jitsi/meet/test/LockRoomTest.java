@@ -59,6 +59,8 @@ public class LockRoomTest
         suite.addTest(new LockRoomTest("enterParticipantInLockedRoom"));
         suite.addTest(new LockRoomTest("unlockRoom"));// stops participant
         suite.addTest(new LockRoomTest("enterParticipantInUnlockedRoom"));
+        suite.addTest(new LockRoomTest(
+            "updateLockedStateWhileParticipantInRoom"));
 
         return suite;
     }
@@ -75,6 +77,14 @@ public class LockRoomTest
         // just in case wait
         TestUtils.waitMillis(1000);
 
+        ownerLockRoom();
+    }
+
+    /**
+     * Owner locks the room.
+     */
+    private void ownerLockRoom()
+    {
         WebDriver owner = ConferenceFixture.getOwner();
         List<WebElement> elems = owner.findElements(
             By.xpath("//span[@id='toolbar']/a[@class='button "
@@ -89,17 +99,17 @@ public class LockRoomTest
         TestUtils.waitForElementByXPath(owner, "//input[@name='lockKey']", 5);
         ROOM_KEY = String.valueOf((int)(Math.random()*1000000));
         owner.findElement(
-                By.xpath("//input[@name='lockKey']")).sendKeys(ROOM_KEY);
+            By.xpath("//input[@name='lockKey']")).sendKeys(ROOM_KEY);
 
         owner.findElement(
-                By.name("jqi_state0_buttonspandatai18ndialogSaveSavespan")).click();
+            By.name("jqi_state0_buttonspandatai18ndialogSaveSavespan")).click();
 
         TestUtils.waitMillis(1000);
 
         TestUtils.waitForElementByXPath(
-                owner,
-                "//span[@id='toolbar']/a[@class='button icon-security-locked']",
-                5);
+            owner,
+            "//span[@id='toolbar']/a[@class='button icon-security-locked']",
+            5);
     }
 
     /**
@@ -119,7 +129,7 @@ public class LockRoomTest
 
         try
         {
-            ConferenceFixture.waitForParticipantToJoinMUC(secondParticipant);
+            MeetUtils.waitForParticipantToJoinMUC(secondParticipant);
 
             fail("The second participant must not be able to join the room.");
         }
@@ -133,7 +143,7 @@ public class LockRoomTest
 
         try
         {
-            ConferenceFixture.waitForParticipantToJoinMUC(secondParticipant);
+            MeetUtils.waitForParticipantToJoinMUC(secondParticipant);
 
             fail("The second participant must not be able to join the room.");
         }
@@ -145,7 +155,7 @@ public class LockRoomTest
         secondParticipant.findElement(
             By.name("jqi_state0_buttonspandatai18ndialogOkOkspan")).click();
 
-        ConferenceFixture.waitForParticipantToJoinMUC(secondParticipant);
+        MeetUtils.waitForParticipantToJoinMUC(secondParticipant);
 
         TestUtils.waitForElementByXPath(
             secondParticipant,
@@ -177,9 +187,12 @@ public class LockRoomTest
 
         MeetUIUtils.clickOnToolbarButton(owner, "toolbar_button_security");
 
-        owner.findElement(
-            By.name("jqi_state0_buttonspandatai18ndialogCancelCancelspan"))
-                .click();
+        WebElement cancelButton = TestUtils.waitForElementBy(
+            owner,
+            By.name("jqi_state0_buttonspandatai18ndialogCancelCancelspan"),
+            1);
+        assertNotNull("Missing cancel button", cancelButton);
+        cancelButton.click();
 
         elems = owner.findElements(
             By.xpath("//span[@id='toolbar']/a[@class='button']/" +
@@ -189,19 +202,32 @@ public class LockRoomTest
                 "for room",
             elems.isEmpty());
 
+        ownerUnlockRoom();
+    }
+
+    /**
+     * Owner unlocks the room.
+     */
+    private void ownerUnlockRoom()
+    {
+        WebDriver owner = ConferenceFixture.getOwner();
+
         MeetUIUtils.clickOnToolbarButton(owner, "toolbar_button_security");
 
-        owner.findElement(
-            By.name("jqi_state0_buttonspandatai18ndialogRemoveRemovespan"))
-                .click();
+        WebElement removeButton = TestUtils.waitForElementBy(
+            owner,
+            By.name("jqi_state0_buttonspandatai18ndialogRemoveRemovespan"),
+            1);
+        assertNotNull("Missing remove button", removeButton);
+        removeButton.click();
 
         // Wait for the lock icon to disappear
         try
         {
             TestUtils.waitForElementNotPresentByXPath(
-                    owner,
-                    "//span[@id='toolbar']/a[@class='button icon-security-locked']",
-                    10);
+                owner,
+                "//span[@id='toolbar']/a[@class='button icon-security-locked']",
+                10);
         }
         catch (TimeoutException exc)
         {
@@ -221,9 +247,9 @@ public class LockRoomTest
 
         // if we fail to unlock the room this one will detect it
         // as participant will fail joining
-        ConferenceFixture.waitForParticipantToJoinMUC(secondParticipant);
-        ConferenceFixture.waitForIceCompleted(secondParticipant);
-        ConferenceFixture.waitForSendReceiveData(secondParticipant);
+        MeetUtils.waitForParticipantToJoinMUC(secondParticipant);
+        MeetUtils.waitForIceConnected(secondParticipant);
+        MeetUtils.waitForSendReceiveData(secondParticipant);
 
         List<WebElement> elems = secondParticipant.findElements(
                 By.xpath("//span[@id='toolbar']/a[@class='button "
@@ -231,5 +257,26 @@ public class LockRoomTest
 
         assertTrue("Icon must be unlocked when starting the test",
             elems.isEmpty());
+    }
+
+    /**
+     * Both participants are in unlocked room, lock it and see whether the
+     * change is reflected on the second participant icon.
+     */
+    public void updateLockedStateWhileParticipantInRoom()
+    {
+        ownerLockRoom();
+
+        TestUtils.waitForElementByXPath(
+            ConferenceFixture.getSecondParticipant(),
+            "//span[@id='toolbar']/a[@class='button icon-security-locked']",
+            5);
+
+        ownerUnlockRoom();
+
+        TestUtils.waitForElementNotPresentByXPath(
+            ConferenceFixture.getSecondParticipant(),
+            "//span[@id='toolbar']/a[@class='button icon-security-locked']",
+            5);
     }
 }

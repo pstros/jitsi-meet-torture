@@ -23,10 +23,8 @@ import org.openqa.selenium.ie.*;
 import org.openqa.selenium.logging.*;
 import org.openqa.selenium.remote.*;
 import org.openqa.selenium.safari.*;
-import org.openqa.selenium.support.ui.*;
 
 import java.io.*;
-import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.TimeoutException;
 import java.util.logging.*;
@@ -53,6 +51,9 @@ public class ConferenceFixture
 
     public static final String FAKE_AUDIO_FNAME_PROP
         = "jitsi-meet.fakeStreamAudioFile";
+
+    public static final String FAKE_VIDEO_FNAME_PROP
+        = "jitsi-meet.fakeStreamVideoFile";
 
     /**
      * The property to change tested browser for the owner.
@@ -99,28 +100,6 @@ public class ConferenceFixture
         = "chrome.disable.nosanbox";
 
     /**
-     * The javascript code which returns {@code true} iff the ICE connection
-     * is in state 'connected'.
-     */
-    public static final String ICE_CONNECTED_CHECK_SCRIPT =
-        "try {" +
-            "var jingle = APP.xmpp.getConnection().jingle.activecall;" +
-            "if (jingle.peerconnection.iceConnectionState === 'connected')" +
-                "return true;" +
-        "} catch (err) { return false; }";
-
-    /**
-     * The javascript code which returns {@code true} iff the ICE connection
-     * is in state 'disconnected'.
-     */
-    public static final String ICE_DISCONNECTED_CHECK_SCRIPT =
-        "try {" +
-            "var jingle = APP.xmpp.getConnection().jingle.activecall;" +
-            "if (jingle.peerconnection.iceConnectionState === 'disconnected')" +
-                "return true;" +
-        "} catch (err) { return false; }";
-
-    /**
      * The available browser type value.
      */
     public enum BrowserType
@@ -161,6 +140,12 @@ public class ConferenceFixture
     private static String fakeStreamAudioFName;
 
     /**
+     * Full name of wav file which will be streamed through participant's fake
+     * video device.
+     */
+    private static String fakeStreamVideoFName;
+
+    /**
      * The conference owner in the tests.
      */
     private static WebDriver owner;
@@ -176,13 +161,29 @@ public class ConferenceFixture
     private static WebDriver thirdParticipant;
 
     /**
+     * Owner is hung up.
+     */
+    private static boolean ownerHungUp = false;
+
+    /**
+     * SecondParticipant is hung up.
+     */
+    private static boolean secondParticipantHungUp = false;
+
+    /**
+     * ThirdParticipant is hung up.
+     */
+    private static boolean thirdParticipantHungUp = false;
+
+    /**
      * Participant drivers enum.
      */
     private enum Participant
     {
         ownerDriver,
         secondParticipantDriver,
-        thirdParticipantDriver
+        thirdParticipantDriver,
+        otherParticipantDriver
     }
 
     /**
@@ -190,6 +191,17 @@ public class ConferenceFixture
      * @return the currently allocated conference owner.
      */
     public static WebDriver getOwner()
+    {
+        if(ownerHungUp)
+            startOwner(null);
+        return owner;
+    }
+
+    /**
+     * Returns the currently allocated conference owner instance.
+     * @return the currently allocated conference owner instance.
+     */
+    public static WebDriver getOwnerInstance()
     {
         return owner;
     }
@@ -201,7 +213,7 @@ public class ConferenceFixture
      */
     public static WebDriver getSecondParticipant()
     {
-        if(secondParticipant == null)
+        if(secondParticipant == null || secondParticipantHungUp)
         {
             // this will only happen if some test that quits the
             // second participant fails, and couldn't open it
@@ -227,7 +239,7 @@ public class ConferenceFixture
      */
     public static WebDriver getThirdParticipant()
     {
-        if(thirdParticipant == null)
+        if(thirdParticipant == null || thirdParticipantHungUp)
         {
             // this will only happen if some test that quits the
             // third participant fails, and couldn't open it
@@ -258,18 +270,18 @@ public class ConferenceFixture
         BrowserType browser
             = BrowserType.valueOfString(System.getProperty(
                     BROWSER_OWNER_NAME_PROP));
-        if (owner != null)
+
+        if(owner == null)
         {
-            System.err.println(
-                "Starting 'owner' while an old instance exists!");
+            currentRoomName = "torture"
+                + String.valueOf((int)(Math.random()*1000000));
+
+            owner = startDriver(browser, Participant.ownerDriver);
         }
 
-        owner = startDriver(browser, Participant.ownerDriver);
-
-        currentRoomName = "torture"
-            + String.valueOf((int)(Math.random()*1000000));
-
         openRoom(owner, fragment, browser);
+
+        ownerHungUp = false;
 
         ((JavascriptExecutor) owner)
             .executeScript("document.title='Owner'");
@@ -292,7 +304,11 @@ public class ConferenceFixture
         String URL = System.getProperty(JITSI_MEET_URL_PROP) + "/"
             + currentRoomName;
         URL += "#config.requireDisplayName=false";
+        URL += "&config.debug=true";
+        URL += "&config.disableAEC=true";
+        URL += "&config.disableNS=true";
         URL += "&config.callStatsID=false";
+        URL += "&config.alwaysVisibleToolbar=true";
         if(fragment != null)
             URL += "&" + fragment;
 
@@ -302,14 +318,34 @@ public class ConferenceFixture
         String participantName = getParticipantName(participant);
         System.err.println(participantName + " is opening URL: " + URL);
 
-        participant.get(URL);
+        {
+            // with chrome v52 we start getting error:
+            // "Timed out receiving message from renderer" and
+            // "Navigate timeout: cannot determine loading status"
+            // seems its a bug or rare problem, maybe concerns async loading
+            // of resources ...
+            // https://bugs.chromium.org/p/chromedriver/issues/detail?id=402
+            // even there is a TimeoutException the page is loaded correctly
+            // and driver is operating, we just lower the page load timeout
+            // default is 3 minutes and we log and skip this exception
+            participant.manage().timeouts()
+                .pageLoadTimeout(30, TimeUnit.SECONDS);
+            try
+            {
+                participant.get(URL);
+            }
+            catch (org.openqa.selenium.TimeoutException ex)
+            {
+                ex.printStackTrace();
+                System.err.println("TimeoutException while loading page, "
+                    + "will skip it and continue:" + ex.getMessage());
+            }
+        }
+        MeetUtils.waitForPageToLoad(participant);
 
         // disables animations
         ((JavascriptExecutor) participant)
             .executeScript("try { jQuery.fx.off = true; } catch(e) {}");
-        // Disables toolbar hiding
-        ((JavascriptExecutor) participant).executeScript(
-            "config.alwaysVisibleToolbar = true");
 
         ((JavascriptExecutor) participant)
             .executeScript("APP.UI.dockToolbar(true);");
@@ -318,6 +354,11 @@ public class ConferenceFixture
         // handle URL parameters)
         ((JavascriptExecutor) participant)
                 .executeScript("config.callStatsID=false;");
+
+        String version = TestUtils.executeScriptAndReturnString(participant,
+            "return JitsiMeetJS.version;");
+        System.err.println(
+            participantName + " lib-jitsi-meet version: " + version);
     }
 
     /**
@@ -445,7 +486,22 @@ public class ConferenceFixture
                     System.setProperty("webdriver.firefox.bin", browserBinary);
             }
 
-            return new FirefoxDriver(getFirefoxProfile());
+            FirefoxProfile profile = new FirefoxProfile();
+            profile.setPreference("media.navigator.permission.disabled", true);
+            // Enables tcp in firefox, disabled by default in 44
+            profile.setPreference("media.peerconnection.ice.tcp", true);
+            profile.setAcceptUntrustedCertificates(true);
+
+            profile.setPreference("webdriver.log.file", FailureListener.createLogsFolder() +
+                "/firefox-js-console-"
+                + getParticipantName(participant) + ".log");
+
+            System.setProperty("webdriver.firefox.logfile",
+                FailureListener.createLogsFolder() +
+                    "/firefox-console-"
+                    + getParticipantName(participant) + ".log");
+
+            return new FirefoxDriver(profile);
         }
         else if (browser == BrowserType.safari)
         {
@@ -487,6 +543,25 @@ public class ConferenceFixture
                     ops.setBinary(binaryFile);
             }
 
+<<<<<<< HEAD
+=======
+            if (fakeStreamAudioFName != null)
+            {
+                ops.addArguments(
+                    "use-file-for-fake-audio-capture=" + fakeStreamAudioFName);
+            }
+
+            if (fakeStreamVideoFName != null)
+            {
+                ops.addArguments(
+                    "use-file-for-fake-video-capture=" + fakeStreamVideoFName);
+            }
+
+            //ops.addArguments("vmodule=\"*media/*=3,*turn*=3\"");
+            ops.addArguments("enable-logging");
+            ops.addArguments("vmodule=*=3");
+
+>>>>>>> master
             caps.setCapability(ChromeOptions.CAPABILITY, ops);
             try
             {
@@ -494,25 +569,37 @@ public class ConferenceFixture
                 // we will retry four times for 1 minute to obtain
                 // the chrome driver, on headless environments chrome hangs
                 // and we wait forever
-                for (int i = 0; i < 4; i++)
+                for (int i = 0; i < 2; i++)
                 {
+                    Future<ChromeDriver> future = null;
                     try
                     {
-                        ChromeDriver res =
-                            pool.submit(
+                        future = pool.submit(
                                 new Callable<ChromeDriver>()
                             {
                                 @Override
                                 public ChromeDriver call() throws Exception
                                 {
-                                    return new ChromeDriver(ops);
+                                    long start = System.currentTimeMillis();
+                                    ChromeDriver resDr = new ChromeDriver(ops);
+                                    System.err.println(
+                                        "ChromeDriver created for:"
+                                        + (System.currentTimeMillis() - start)
+                                        + " ms.");
+                                    return resDr;
                                 }
-                            }).get(1, TimeUnit.MINUTES);
+                            });
+
+                        ChromeDriver res = future.get(2, TimeUnit.MINUTES);
                         if(res != null)
                             return res;
                     }
                     catch (TimeoutException te)
                     {
+                        // cancel current task
+                        if (future != null)
+                            future.cancel(true);
+
                         System.err.println("Timeout waiting for "
                             + "chrome instance! We will retry now, this was our"
                             + "attempt " + i);
@@ -532,7 +619,7 @@ public class ConferenceFixture
     }
 
     /**
-     * Starts <tt>secondParticipant</tt>.
+     * Starts <tt>secondParticipant</tt> if needed.
      * @return the {@code WebDriver} which was started.
      */
     public static WebDriver startSecondParticipant()
@@ -541,7 +628,7 @@ public class ConferenceFixture
     }
 
     /**
-     * Starts <tt>secondParticipant</tt>.
+     * Starts <tt>secondParticipant</tt> if needed, joins the room if not there.
      * @param fragment A string to be added to the URL as a parameter (i.e.
      * prefixed with a '&').
      * @return the {@code WebDriver} which was started.
@@ -554,15 +641,13 @@ public class ConferenceFixture
             = BrowserType.valueOfString(
                 System.getProperty(BROWSER_SECONDP_NAME_PROP));
 
-        if (secondParticipant != null)
-        {
-            System.err.println(
-                "Starting 'secondParticipant' while an old instance exists!");
-        }
-        secondParticipant
-            = startDriver(browser, Participant.secondParticipantDriver);
+        if(secondParticipant == null)
+            secondParticipant
+                = startDriver(browser, Participant.secondParticipantDriver);
 
         openRoom(secondParticipant, fragment, browser);
+
+        secondParticipantHungUp = false;
 
         ((JavascriptExecutor) secondParticipant)
             .executeScript("document.title='SecondParticipant'");
@@ -571,10 +656,23 @@ public class ConferenceFixture
     }
 
     /**
-     * Starts the third participant reusing the already generated room name.
+     * Starts <tt>thirdParticipant</tt>.
      * @return the {@code WebDriver} which was started.
      */
     public static WebDriver startThirdParticipant()
+    {
+        return startThirdParticipant(null);
+    }
+
+    /**
+     * Starts the third participant reusing the already generated room name.
+     * Checks if instance is created do not create it again, if its just not in
+     * the room just join there.
+     * @param fragment A string to be added to the URL as a parameter (i.e.
+     * prefixed with a '&').
+     * @return the {@code WebDriver} which was started.
+     */
+    public static WebDriver startThirdParticipant(String fragment)
     {
         System.err.println("Starting third participant.");
 
@@ -582,161 +680,51 @@ public class ConferenceFixture
             = BrowserType.valueOfString(
                 System.getProperty(BROWSER_THIRDP_NAME_PROP));
 
-        if (thirdParticipant != null)
-        {
-            System.err.println(
-                "Starting 'thirdParticipant' while an old instance exists!");
-        }
-        thirdParticipant
-            = startDriver(browser, Participant.thirdParticipantDriver);
+        if (thirdParticipant == null)
+            thirdParticipant
+                = startDriver(browser, Participant.thirdParticipantDriver);
 
-        openRoom(thirdParticipant, null, browser);
+        openRoom(thirdParticipant, fragment, browser);
+
+        thirdParticipantHungUp = false;
 
         ((JavascriptExecutor) thirdParticipant)
             .executeScript("document.title='ThirdParticipant'");
 
         return thirdParticipant;
     }
-
+    
     /**
-     * Waits until {@code participant} joins the MUC.
-     * @param participant the participant.
+     * Starts the participant reusing the already generated room name.
+     * Checks if instance is created do not create it again, if its just not in
+     * the room just join there.
+     * @param fragment A string to be added to the URL as a parameter (i.e.
+     * prefixed with a '&').
+     * @return the {@code WebDriver} which was started.
+     * NOTE: Uses the browser type set for the owner.
      */
-    public static void waitForParticipantToJoinMUC(WebDriver participant)
+    public static WebDriver startParticipant(String fragment)
     {
-        waitForParticipantToJoinMUC(participant, 5);
+        System.err.println("Starting participant");
+
+        BrowserType browser
+            = BrowserType.valueOfString(
+                System.getProperty(BROWSER_OWNER_NAME_PROP));
+        
+        WebDriver participant = 
+            startDriver(browser, Participant.otherParticipantDriver);
+
+        openRoom(participant, fragment, browser);
+
+        ((JavascriptExecutor) participant)
+            .executeScript("document.title='Participant'");
+
+        return participant;
     }
 
     /**
-     * Waits until {@code participant} joins the MUC.
-     * @param participant the participant.
-     * @param timeout the maximum time to wait in seconds.
-     */
-    public static void waitForParticipantToJoinMUC(
-        WebDriver participant, long timeout)
-    {
-        TestUtils.waitForBoolean(
-            participant,
-            "return (APP.xmpp.getConnection() != null) &&" +
-                    "APP.xmpp.isMUCJoined();",
-            timeout);
-    }
-
-    /**
-     * Waits 30 sec for the given participant to enter the ICE 'connected'
-     * state.
-     *
-     * @param participant the participant.
-     */
-    public static void waitForIceCompleted(WebDriver participant)
-    {
-        waitForIceCompleted(participant, 30);
-    }
-
-    /**
-     * Waits 30 sec for the given participant to enter the ICE 'connected'
-     * state.
-     *
-     * @param participant the participant.
-     * @param timeout timeout in seconds.
-     */
-    public static void waitForIceCompleted(WebDriver participant, long timeout)
-    {
-        TestUtils.waitForBoolean(
-            participant, ICE_CONNECTED_CHECK_SCRIPT, timeout);
-    }
-
-    /**
-     * Waits 30 sec for the given participant to enter the ICE 'disconnected'
-     * state.
-     *
-     * @param participant the participant.
-     */
-    public static void waitForIceDisconnected(WebDriver participant)
-    {
-        waitForIceDisconnected(participant, 30);
-    }
-
-    /**
-     * Waits for the given participant to enter the ICE 'disconnected' state.
-     *
-     * @param participant the participant.
-     * @param timeout timeout in seconds.
-     */
-    public static void waitForIceDisconnected(WebDriver    participant,
-                                              long         timeout)
-    {
-        TestUtils.waitForBoolean(
-            participant, ICE_DISCONNECTED_CHECK_SCRIPT, timeout);
-    }
-
-    /**
-     * Checks whether the iceConnectionState of <tt>participant</tt> is in state
-     * {@code connected}.
-     *
-     * @param participant driver instance used by the participant for whom we
-     *                    want to check.
-     * @return {@code true} if the {@code iceConnectionState} of the specified
-     * {@code participant} is {@code connected}; otherwise, {@code false}
-     */
-    public static boolean isIceConnected(WebDriver participant)
-    {
-        Object res = ((JavascriptExecutor) participant)
-            .executeScript(ICE_CONNECTED_CHECK_SCRIPT);
-        return res != null && res.equals(Boolean.TRUE);
-    }
-
-    /**
-     * Checks whether a participant is in the MUC.
-     *
-     * @param participant the participant.
-     * @return {@code true} if the specified {@code participant} has joined the
-     * room; otherwise, {@code false}
-     */
-    public static boolean isInMuc(WebDriver participant)
-    {
-        Object res = ((JavascriptExecutor) participant)
-            .executeScript("return APP.xmpp.isMUCJoined();");
-        return res != null && res.equals(Boolean.TRUE);
-    }
-
-    /**
-     * Returns download bitrate.
-     * @param participant
-     * @return
-     */
-    public static long getDownloadBitrate(WebDriver participant)
-    {
-        Map stats = (Map)((JavascriptExecutor) participant)
-            .executeScript("return APP.connectionquality.getStats();");
-
-        Map<String,Long> bitrate =
-            (Map<String,Long>)stats.get("bitrate");
-
-        if(bitrate != null)
-        {
-            long download =  bitrate.get("download");
-            return download;
-        }
-
-        return 0;
-    }
-
-    /**
-     * Checks whether the strophe connection is connected.
-     * @param participant
-     * @return
-     */
-    public static boolean isXmppConnected(WebDriver participant)
-    {
-        Object res = ((JavascriptExecutor) participant)
-            .executeScript("return APP.xmpp.getConnection().connected;");
-        return res != null && res.equals(Boolean.TRUE);
-    }
-
-    /**
-     * Hangs up the Jitsi-Meet call running in {@code participant} and closes
-     * the driver.
+     * Hangs up the Jitsi-Meet call running in {@code participant} without
+     * closing the driver. If we fail hanging up we close and the driver.
      * @param participant the participant.
      */
     public static void close(WebDriver participant)
@@ -749,21 +737,64 @@ public class ConferenceFixture
 
         try
         {
-            MeetUIUtils.clickOnToolbarButtonByClass(participant, "icon-hangup");
+            MeetUIUtils.clickOnToolbarButtonByClassIfDisplayed(
+                participant, "icon-hangup");
 
             TestUtils.waitMillis(500);
+
+            if (participant == owner)
+            {
+                ownerHungUp = true;
+            }
+            else if (participant == secondParticipant)
+            {
+                secondParticipantHungUp = true;
+            }
+            else if (participant == thirdParticipant)
+            {
+                thirdParticipantHungUp = true;
+            }
         }
         catch(Throwable t)
         {
             t.printStackTrace();
+
+            quit(participant, false);
         }
+
+        String instanceName = getParticipantName(participant);
+        System.err.println("Hung up in " + instanceName + ".");
+
+        // open a blank page after hanging up, to make sure
+        // we will successfully navigate to the new link containing the
+        // parameters, which change during testing
+        participant.get("about:blank");
+        MeetUtils.waitForPageToLoad(participant);
+    }
+
+    /**
+     * Hangs up the Jitsi-Meet call running in {@code participant} and closes
+     * the driver.
+     * @param participant the participant.
+     */
+    public static void quit(WebDriver participant)
+    {
+        quit(participant, true);
+    }
+
+    /**
+     * Hangs up the Jitsi-Meet call running in {@code participant} and closes
+     * the driver.
+     * @param participant the participant.
+     * @param hangup whether we need to hangup the call first
+     */
+    public static void quit(WebDriver participant, boolean hangup)
+    {
+        if(hangup)
+            close(participant);
 
         try
         {
-            participant.close();
-
-            TestUtils.waitMillis(500);
-
             participant.quit();
 
             TestUtils.waitMillis(500);
@@ -804,6 +835,18 @@ public class ConferenceFixture
     }
 
     /**
+     * Sets the name of y4m video file which will be streamed through fake video
+     * device by participants.
+     *
+     * @param fakeStreamVideoFile full name of y4m file for the fake video
+     *                            device.
+     */
+    public static void setFakeStreamVideoFile(String fakeStreamVideoFile)
+    {
+        fakeStreamVideoFName = fakeStreamVideoFile;
+    }
+
+    /**
      * Gets the {@code BrowserType} of {@code driver}.
      * @param driver the driver.
      * @return the browser type.
@@ -830,39 +873,6 @@ public class ConferenceFixture
     }
 
     /**
-     * Waits until data has been sent and received over the ICE connection
-     * in {@code participant}.
-     * @param participant the participant.
-     */
-    public static void waitForSendReceiveData(final WebDriver participant)
-    {
-        new WebDriverWait(participant, 15)
-            .until(new ExpectedCondition<Boolean>()
-            {
-                public Boolean apply(WebDriver d)
-                {
-                    Map stats = (Map) ((JavascriptExecutor) participant)
-                            .executeScript("return APP.connectionquality" +
-                                                   ".getStats();");
-
-                    Map<String, Long> bitrate =
-                            (Map<String, Long>) stats.get("bitrate");
-
-                    if (bitrate != null)
-                    {
-                        long download = bitrate.get("download");
-                        long upload = bitrate.get("upload");
-
-                        if (download > 0 && upload > 0)
-                            return true;
-                    }
-
-                    return false;
-                }
-            });
-    }
-
-    /**
      * Waits until the owner joins the room, creating and starting the owner
      * if it hasn't been started.
      */
@@ -871,7 +881,17 @@ public class ConferenceFixture
         if (owner == null)
             startOwner(null);
 
-        waitForParticipantToJoinMUC(owner, 15);
+        MeetUtils.waitForParticipantToJoinMUC(owner, 15);
+    }
+
+    /**
+     * Closes all participants.
+     */
+    public static void closeAllParticipants ()
+    {
+        ConferenceFixture.closeSecondParticipant();
+        ConferenceFixture.closeThirdParticipant();
+        ConferenceFixture.close(ConferenceFixture.getOwnerInstance());
     }
 
     /**
@@ -903,9 +923,11 @@ public class ConferenceFixture
     {
         WebDriver secondParticipant = getSecondParticipant();
         assertNotNull(secondParticipant);
-        waitForParticipantToJoinMUC(secondParticipant, 10);
-        waitForIceCompleted(secondParticipant);
-        waitForSendReceiveData(secondParticipant);
+        MeetUtils.waitForParticipantToJoinMUC(secondParticipant, 10);
+        MeetUtils.waitForIceConnected(secondParticipant);
+        MeetUtils.waitForSendReceiveData(secondParticipant);
+
+        TestUtils.waitMillis(5000);
     }
 
     /**
@@ -927,36 +949,12 @@ public class ConferenceFixture
     {
         WebDriver thirdParticipant = getThirdParticipant();
         assertNotNull(thirdParticipant);
-        waitForParticipantToJoinMUC(thirdParticipant, 10);
-        waitForIceCompleted(thirdParticipant);
-        waitForSendReceiveData(thirdParticipant);
-        waitForRemoteStreams(thirdParticipant, 2);
-    }
+        MeetUtils.waitForParticipantToJoinMUC(thirdParticipant, 10);
+        MeetUtils.waitForIceConnected(thirdParticipant);
+        MeetUtils.waitForSendReceiveData(thirdParticipant);
+        MeetUtils.waitForRemoteStreams(thirdParticipant, 2);
 
-    /**
-     * Waits for number of remote streams.
-     * @param participant the driver to use for the check.
-     * @param n number of remote streams to wait for
-     */
-    public static void waitForRemoteStreams(
-            final WebDriver participant,
-            final int n)
-    {
-        new WebDriverWait(participant, 15)
-            .until(new ExpectedCondition<Boolean>()
-            {
-                public Boolean apply(WebDriver d)
-                {
-                    long streams = (Long)((JavascriptExecutor) participant)
-                        .executeScript("return "
-                            + "Object.keys(APP.RTC.remoteStreams).length;");
-
-                    if(streams >= n)
-                        return true;
-                    else
-                        return false;
-                }
-            });
+        TestUtils.waitMillis(3000);
     }
 
     /**
@@ -1037,5 +1035,23 @@ public class ConferenceFixture
         {
             return "unknownDriverInstance";
         }
+    }
+
+    /**
+     * Restarts the two participants so we clear states of this test.
+     */
+    public static void restartParticipants()
+    {
+        System.err.println("Start restartParticipants.");
+
+        ConferenceFixture.close(ConferenceFixture.getSecondParticipant());
+        ConferenceFixture.close(ConferenceFixture.getOwner());
+        TestUtils.waitMillis(1000);
+
+        WebDriver owner = ConferenceFixture.startOwner(null);
+
+        MeetUtils.waitForParticipantToJoinMUC(owner, 10);
+        ConferenceFixture.waitForSecondParticipantToConnect();
+        MeetUtils.waitForIceConnected(owner);
     }
 }

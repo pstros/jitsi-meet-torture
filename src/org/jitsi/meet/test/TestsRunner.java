@@ -59,31 +59,58 @@ public class TestsRunner
         DEFAULT_TESTS_TO_RUN.add(AvatarTest.class.getSimpleName());
         DEFAULT_TESTS_TO_RUN.add(MuteTest.class.getSimpleName());
         DEFAULT_TESTS_TO_RUN.add(StopVideoTest.class.getSimpleName());
-        DEFAULT_TESTS_TO_RUN.add(SwitchVideoTests.class.getSimpleName());
-        DEFAULT_TESTS_TO_RUN.add(EtherpadTests.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(SwitchVideoTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(EtherpadTest.class.getSimpleName());
+
+        DEFAULT_TESTS_TO_RUN.add(ActiveSpeakerTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(StartMutedTest.class.getSimpleName());
+
+        //DEFAULT_TESTS_TO_RUN.add(LastNTest.class.getSimpleName());
+
+        DEFAULT_TESTS_TO_RUN.add(DisplayNameTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(DataChannelTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(ContactListTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(VideoLayoutTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(FollowMeTest.class.getSimpleName());
+        //DEFAULT_TESTS_TO_RUN.add(
+        //    DesktopSharingImitationTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(DesktopSharingTest.class.getSimpleName());
+        if(Boolean.getBoolean(RestTests.ENABLE_REST_API_TESTS))
+            DEFAULT_TESTS_TO_RUN.add(RestTests.class.getSimpleName());
+
+        DEFAULT_TESTS_TO_RUN.add(UDPTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(SinglePortTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(TCPTest.class.getSimpleName());
+
+        DEFAULT_TESTS_TO_RUN.add(SharedVideoTest.class.getSimpleName());
+
         DEFAULT_TESTS_TO_RUN.add(LockRoomTest.class.getSimpleName());
         // doing the same test two more times to be sure it is
         // not a problem, as there was reported an issue about that
         // https://github.com/jitsi/jitsi-meet/issues/83
         DEFAULT_TESTS_TO_RUN.add(LockRoomTest.class.getSimpleName());
         DEFAULT_TESTS_TO_RUN.add(LockRoomTest.class.getSimpleName());
+        
+//        DEFAULT_TESTS_TO_RUN.add(MaxUsersTest.class.getSimpleName());
+        DEFAULT_TESTS_TO_RUN.add(ConnectionTimeTest.class.getSimpleName());
 
-        DEFAULT_TESTS_TO_RUN.add(UDPTest.class.getSimpleName());
-        DEFAULT_TESTS_TO_RUN.add(SinglePortTest.class.getSimpleName());
-        DEFAULT_TESTS_TO_RUN.add(TCPTest.class.getSimpleName());
+        File inputFrameDir = new File(PSNRTest.INPUT_FRAME_DIR);
+        String fakeStreamVideoFileName
+            = System.getProperty(ConferenceFixture.FAKE_VIDEO_FNAME_PROP);
+        File fakeStreamVideoFile = new File(fakeStreamVideoFileName);
 
-        DEFAULT_TESTS_TO_RUN.add(ActiveSpeakerTest.class.getSimpleName());
-        DEFAULT_TESTS_TO_RUN.add(StartMutedTest.class.getSimpleName());
+        if (inputFrameDir.exists() && fakeStreamVideoFile.exists())
+        {
+            DEFAULT_TESTS_TO_RUN.add(PSNRTest.class.getSimpleName());
+        }
 
-        DEFAULT_TESTS_TO_RUN.add(DisplayNameTest.class.getSimpleName());
-        DEFAULT_TESTS_TO_RUN.add(DataChannelTest.class.getSimpleName());
-        DEFAULT_TESTS_TO_RUN.add(ContactListTest.class.getSimpleName());
-        DEFAULT_TESTS_TO_RUN.add(VideoLayoutTest.class.getSimpleName());
-        //DEFAULT_TESTS_TO_RUN.add(
-        //    DesktopSharingImitationTest.class.getSimpleName());
-        DEFAULT_TESTS_TO_RUN.add(DesktopSharingTest.class.getSimpleName());
-        if(Boolean.getBoolean(RestTests.ENABLE_REST_API_TESTS))
-            DEFAULT_TESTS_TO_RUN.add(RestTests.class.getSimpleName());
+        // make sure LipSyncTest tests are the last to run as they will stop
+        // and start the browsers one more time and will change the video file
+        DEFAULT_TESTS_TO_RUN.add(LipSyncTest.class.getSimpleName());
+        
+        DEFAULT_TESTS_TO_RUN.add(ReloadTest.class.getSimpleName());
+
+        DEFAULT_TESTS_TO_RUN.add(EndConferenceTest.class.getSimpleName());
     }
 
     /**
@@ -174,6 +201,23 @@ public class TestsRunner
     }
 
     /**
+     * Sets the video file to be streamed through a fake video device by the
+     * conference participants.
+     */
+    private static void setFakeVideoStreamFile()
+    {
+        String fakeStreamVideoFile
+            = System.getProperty(ConferenceFixture.FAKE_VIDEO_FNAME_PROP);
+
+        if (fakeStreamVideoFile != null
+            && fakeStreamVideoFile.trim().length() > 0)
+        {
+            ConferenceFixture.setFakeStreamVideoFile(
+                fakeStreamVideoFile.trim());
+        }
+    }
+
+    /**
      * Gets (a suite of) the tests to run. If the property
      * {@code jitsi-meet.tests.toRun} exists, we use its value to add only the
      * tests it mentions.
@@ -187,6 +231,7 @@ public class TestsRunner
         TestSuite suite = suite(testsToRun);
 
         setFakeAudioStreamFile();
+        setFakeVideoStreamFile();
 
         return suite;
     }

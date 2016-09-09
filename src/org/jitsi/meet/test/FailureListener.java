@@ -20,10 +20,10 @@ import org.apache.commons.io.*;
 import org.apache.tools.ant.taskdefs.optional.junit.*;
 import org.openqa.selenium.*;
 
-import org.jitsi.meet.test.util.*;
 import org.openqa.selenium.logging.*;
 
 import java.io.*;
+import java.lang.management.*;
 import java.util.*;
 
 /**
@@ -62,6 +62,12 @@ public class FailureListener
     @Override
     public void addFailure(Test test, AssertionFailedError t)
     {
+        if(t != null)
+        {
+            System.err.println("Failure:");
+            t.printStackTrace();
+        }
+
         try
         {
             String fileNamePrefix
@@ -75,6 +81,8 @@ public class FailureListener
             saveMeetDebugLog(fileNamePrefix);
 
             saveBrowserLogs(fileNamePrefix);
+
+            saveThreadDump(fileNamePrefix);
         }
         catch(Throwable ex)
         {
@@ -92,6 +100,12 @@ public class FailureListener
     @Override
     public void addError(Test test, Throwable t)
     {
+        if(t != null)
+        {
+            System.err.println("Error:");
+            t.printStackTrace();
+        }
+
         try
         {
             String fileNamePrefix
@@ -105,6 +119,8 @@ public class FailureListener
             saveMeetDebugLog(fileNamePrefix);
 
             saveBrowserLogs(fileNamePrefix);
+
+            saveThreadDump(fileNamePrefix);
         }
         catch(Throwable ex)
         {
@@ -160,7 +176,7 @@ public class FailureListener
         String fileName = JUnitVersionHelper.getTestCaseClassName(test)
             + "." + JUnitVersionHelper.getTestCaseName(test);
 
-        takeScreenshot(ConferenceFixture.getOwner(),
+        takeScreenshot(ConferenceFixture.getOwnerInstance(),
             fileName + "-owner.png");
 
         WebDriver secondParticipant =
@@ -187,13 +203,18 @@ public class FailureListener
     {
         TakesScreenshot takesScreenshot = (TakesScreenshot) driver;
 
+        if(takesScreenshot == null)
+        {
+            System.err.println("No driver to take screenshot from! FileName:"
+                + fileName);
+            return;
+        }
+
         File scrFile = takesScreenshot.getScreenshotAs(OutputType.FILE);
         File destFile = new File(outputScreenshotsParentFolder, fileName);
         try
         {
-            //System.err.println("Took screenshot " + destFile);
             FileUtils.copyFile(scrFile, destFile);
-            //System.err.println("Saved screenshot " + destFile);
         } catch (IOException ioe)
         {
             throw new RuntimeException(ioe);
@@ -210,7 +231,7 @@ public class FailureListener
         String fileName = JUnitVersionHelper.getTestCaseClassName(test)
             + "." + JUnitVersionHelper.getTestCaseName(test);
 
-        saveHtmlSource(ConferenceFixture.getOwner(),
+        saveHtmlSource(ConferenceFixture.getOwnerInstance(),
             fileName + "-owner.html");
 
         WebDriver secondParticipant =
@@ -284,19 +305,10 @@ public class FailureListener
         try
         {
             Object log = ((JavascriptExecutor) driver)
-                .executeScript("try{"
-                    + "    var data = APP.xmpp.getJingleLog();\n"
-                    + "    var metadata = {};\n"
-                    + "    metadata.time = new Date();\n"
-                    + "    metadata.url = window.location.href;\n"
-                    + "    metadata.ua = navigator.userAgent;\n"
-                    + "    var log = APP.xmpp.getXmppLog();\n"
-                    + "    if (log) {\n"
-                    + "        metadata.xmpp = log;\n"
-                    + "    }\n"
-                    + "    data.metadata = metadata;\n"
-                    + "    return JSON.stringify(data, null, '  ');"
-                    + "}catch (e) {}");
+                .executeScript(
+            "try{ "
+            + "return JSON.stringify(APP.conference.getLogs(), null, '    ');"
+            + "}catch (e) {}");
 
             if(log == null)
                 return;
@@ -317,32 +329,61 @@ public class FailureListener
     private void saveBrowserLogs(String fileNamePrefix)
     {
         saveBrowserLogs(ConferenceFixture.getOwner(),
-            fileNamePrefix + "-console-owner.log");
+            fileNamePrefix, "-console-owner", ".log");
 
         WebDriver secondParticipant =
             ConferenceFixture.getSecondParticipantInstance();
         if(secondParticipant != null)
             saveBrowserLogs(secondParticipant,
-                fileNamePrefix + "-console-participant.log");
+                fileNamePrefix, "-console-secondParticipant", ".log");
 
         WebDriver thirdParticipant =
             ConferenceFixture.getThirdParticipantInstance();
         if(thirdParticipant != null)
             saveBrowserLogs(thirdParticipant,
-                fileNamePrefix + "-console-third.log");
+                fileNamePrefix, "-console-thirdParticipant", ".log");
+    }
+
+    /**
+     * Saves current java thread dump.
+     */
+    private void saveThreadDump(String fileNamePrefix)
+    {
+        StringBuilder dump = new StringBuilder();
+        ThreadMXBean tbean = ManagementFactory.getThreadMXBean();
+        ThreadInfo[] threads
+            = tbean.getThreadInfo(tbean.getAllThreadIds(), 150);
+        for (ThreadInfo tinfo : threads)
+        {
+            dump.append(tinfo);
+            dump.append("\n");
+        }
+
+        try
+        {
+            BufferedWriter out = new BufferedWriter(new FileWriter(
+                new File(outputLogsParentFolder,
+                    fileNamePrefix + ".tdump")));
+            out.write(dump.toString());
+            out.flush();
+            out.close();
+        }
+        catch (IOException e){}
     }
 
     /**
      * Saves browser console logs.
      */
-    private void saveBrowserLogs(WebDriver driver, String fileName)
+    private void saveBrowserLogs(WebDriver driver,
+        String fileNamePrefix, String suffix, String extension)
     {
         try
         {
             LogEntries logs = driver.manage().logs().get(LogType.BROWSER);
 
             BufferedWriter out = new BufferedWriter(new FileWriter(
-                new File(outputLogsParentFolder, fileName)));
+                new File(outputLogsParentFolder,
+                        fileNamePrefix + suffix + "-driver" + extension)));
 
             Iterator<LogEntry> iter = logs.iterator();
             while (iter.hasNext())
@@ -355,6 +396,17 @@ public class FailureListener
             }
             out.flush();
             out.close();
+
+            if (ConferenceFixture.getBrowserType(driver)
+                == ConferenceFixture.BrowserType.chrome)
+            {
+                FileUtils.copyFile(
+                    new File(outputLogsParentFolder,
+                            "chrome" + suffix + ".log"),
+                    new File(outputLogsParentFolder,
+                            fileNamePrefix + suffix + "-chrome" + extension)
+                    );
+            }
         }
         catch (IOException e)
         {
