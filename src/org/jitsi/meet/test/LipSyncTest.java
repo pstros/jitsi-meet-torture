@@ -108,6 +108,10 @@ public class LipSyncTest
             = ConferenceFixture.startOwner(
                     "config.enableLipSync=true&config.audioPacketDelay=15" +
                         "&config.audioLevelsInterval=100");
+
+        AuthSetupConference auth = new AuthSetupConference("authenticate");
+        auth.authenticate();
+
         WebDriver participant = ConferenceFixture.getSecondParticipant();
 
         // Wait for the conference to start
