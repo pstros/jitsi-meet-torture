@@ -543,8 +543,6 @@ public class ConferenceFixture
                     ops.setBinary(binaryFile);
             }
 
-<<<<<<< HEAD
-=======
             if (fakeStreamAudioFName != null)
             {
                 ops.addArguments(
@@ -561,7 +559,6 @@ public class ConferenceFixture
             ops.addArguments("enable-logging");
             ops.addArguments("vmodule=*=3");
 
->>>>>>> master
             caps.setCapability(ChromeOptions.CAPABILITY, ops);
             try
             {
