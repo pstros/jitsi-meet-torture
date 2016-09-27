@@ -78,16 +78,16 @@ public class ActiveSpeakerTest
         muteAllParticipants();
 
         // Owner becomes active speaker - check from 2nd peer's perspective
-        testActiveSpeaker(owner, secondParticipant);
+        testActiveSpeaker(owner, secondParticipant, thirdParticipant);
         // 3rd peer becomes active speaker - check from 2nd peer's perspective
-        testActiveSpeaker(thirdParticipant, secondParticipant);
+        testActiveSpeaker(thirdParticipant, secondParticipant, owner);
         // 2nd peer becomes active speaker - check from owner's perspective
-        testActiveSpeaker(secondParticipant, owner);
+        testActiveSpeaker(secondParticipant, owner, thirdParticipant);
 
         // check the displayed speakers, there should be only one speaker
-        checkDisplayNames(owner);
-        checkDisplayNames(secondParticipant);
-        checkDisplayNames(thirdParticipant);
+        assertOneDominantSpeaker(owner);
+        assertOneDominantSpeaker(secondParticipant);
+        assertOneDominantSpeaker(thirdParticipant);
 
         // Dispose 3rd
         ConferenceFixture.close(thirdParticipant);
@@ -97,24 +97,26 @@ public class ActiveSpeakerTest
     }
 
     /**
-     * Checks the number of Speakers shown, it should be only one.
+     * Asserts that the number of small videos with the dominant speaker
+     * indicator displayed equals 1.
      * @param driver the participant to check
      */
-    private void checkDisplayNames(WebDriver driver)
+    private void assertOneDominantSpeaker(WebDriver driver)
     {
-        List<WebElement> displayNamesElem =
+        List<WebElement> dominantSpeakerIndicators =
             driver.findElements(By.xpath(
-                "//span[contains(@class,'dominantspeakerindicator')]"
+                "//span[contains(@id,'dominantspeakerindicator')]"
                 ));
 
         int speakers = 0;
-        for (WebElement el : displayNamesElem)
+        for (WebElement el : dominantSpeakerIndicators)
         {
-            if(el.isDisplayed())
+            if (el.isDisplayed())
                 speakers++;
         }
 
-        assertEquals("Speakers should not be more then one", 1, speakers);
+        assertEquals(
+            "Wrong number of dominant speaker indicators.", 1, speakers);
     }
 
     private void muteAllParticipants()
@@ -144,15 +146,40 @@ public class ActiveSpeakerTest
      *                      will be testes as an active speaker.
      * @param peer2 <tt>WebDriver</tt> of the participant who will be observing
      *              and verifying active speaker change.
+     * @param peer3 used only to print some debugging info
      */
-    private void testActiveSpeaker(WebDriver activeSpeaker, WebDriver peer2)
+    private void testActiveSpeaker(
+        WebDriver activeSpeaker, WebDriver peer2, WebDriver peer3)
     {
-        System.err.println("Start testActiveSpeaker.");
+        // we cannot use firefox as active speaker as it uses constant beep
+        // audio which is not detected as speech
+        if (ConferenceFixture.getBrowserType(activeSpeaker)
+                == ConferenceFixture.BrowserType.firefox)
+        {
+            return;
+        }
+
+        System.err.println("Start testActiveSpeaker for participant: "
+            + ConferenceFixture.getParticipantName(activeSpeaker));
 
         final String speakerEndpoint = MeetUtils.getResourceJid(activeSpeaker);
 
+        // just a debug print to go in logs
+        ((JavascriptExecutor) activeSpeaker)
+            .executeScript(
+                "console.log('Unmuting in testActiveSpeaker');");
         // Unmute
         MeetUIUtils.clickOnToolbarButton(activeSpeaker, "toolbar_button_mute");
+        // just a debug print to go in logs
+        ((JavascriptExecutor) peer2)
+            .executeScript(
+                "console.log('Participant unmuted in testActiveSpeaker "
+                    + speakerEndpoint + "');");
+        // just a debug print to go in logs
+        ((JavascriptExecutor) peer3)
+            .executeScript(
+                "console.log('Participant unmuted in testActiveSpeaker "
+                    + speakerEndpoint + "');");
         MeetUIUtils.assertMuteIconIsDisplayed(
                 peer2,
                 activeSpeaker,
@@ -180,8 +207,22 @@ public class ActiveSpeakerTest
                 speakerEndpoint, MeetUIUtils.getLargeVideoResource(peer2));
         }
 
+        // just a debug print to go in logs
+        ((JavascriptExecutor) activeSpeaker)
+            .executeScript(
+                "console.log('Muting in testActiveSpeaker');");
         // Mute back again
         MeetUIUtils.clickOnToolbarButton(activeSpeaker, "toolbar_button_mute");
+        // just a debug print to go in logs
+        ((JavascriptExecutor) peer2)
+            .executeScript(
+                "console.log('Participant muted in testActiveSpeaker "
+                    + speakerEndpoint + "');");
+        // just a debug print to go in logs
+        ((JavascriptExecutor) peer3)
+            .executeScript(
+                "console.log('Participant muted in testActiveSpeaker "
+                    + speakerEndpoint + "');");
         MeetUIUtils.assertMuteIconIsDisplayed(
                 peer2,
                 activeSpeaker,

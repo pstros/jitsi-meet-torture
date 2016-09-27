@@ -18,11 +18,16 @@ package org.jitsi.meet.test.util;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.*;
 
+import java.io.*;
+import java.nio.file.*;
 import java.util.*;
+
+import static org.junit.Assert.fail;
 
 /**
  * Utility class.
  * @author Damian Minkov
+ * @author Pawel Domas
  */
 public class TestUtils
 {
@@ -56,6 +61,35 @@ public class TestUtils
         {
             IS_LINUX = false;
             IS_MAC = false;
+        }
+    }
+
+    /**
+     * Injects JS script into given <tt>participant</tt> <tt>WebDriver</tt>.
+     * @param participant the <tt>WebDriver</tt> where the script will be
+     * injected.
+     * @param scriptPath the path of the JS script to be injected.
+     */
+    public static void injectScript(WebDriver participant, String scriptPath)
+    {
+        JavascriptExecutor js = ((JavascriptExecutor) participant);
+
+        // read and inject helper script
+        try
+        {
+            Path scriptAbsolutePath
+                = Paths.get(new File(scriptPath).getAbsolutePath());
+
+            String script = new String(Files.readAllBytes(scriptAbsolutePath));
+
+            js.executeScript(script);
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+
+            fail("Failed to inject JS script: " + scriptPath + " into "
+                    + participant);
         }
     }
 
@@ -133,6 +167,39 @@ public class TestUtils
     }
 
     /**
+     * Waits until an element becomes available and return it.
+     * @param participant the {@code WebDriver}.
+     * @param by the xpath to search for the element
+     * @param timeout the time to wait for the element in seconds.
+     * @return WebElement the found element
+     */
+    public static WebElement waitForElementBy(
+        WebDriver participant,
+        final By by,
+        long timeout)
+    {
+        final WebElement[] foundElement = new WebElement[1];
+        new WebDriverWait(participant, timeout)
+            .until(new ExpectedCondition<Boolean>()
+            {
+                public Boolean apply(WebDriver d)
+                {
+                    List<WebElement> elements = d.findElements(by);
+
+                    if(!elements.isEmpty())
+                    {
+                        foundElement[0] = elements.get(0);
+                        return true;
+                    }
+                    else
+                        return false;
+                }
+            });
+
+        return foundElement[0];
+    }
+
+    /**
      * Waits until an element becomes unavailable.
      * @param participant the {@code WebDriver}.
      * @param xpath the xpath to search for the element
@@ -207,6 +274,35 @@ public class TestUtils
                     return el != null && el.isDisplayed();
                 }
             });
+    }
+
+    /**
+     * Waits until an element has attribute equal to specified value.
+     * @param participant the {@code WebDriver}.
+     * @param xpath the xpath to search for the element
+     * @param attributeName name of the the element's attribute
+     * @param attributeValue expected value of the the element's attribute
+     * @param timeout the time to wait for the element in seconds.
+     */
+    public static void waitForElementAttributeValueByXPath(
+            WebDriver participant,
+            final String xpath,
+            final String attributeName,
+            final Object attributeValue,
+            long timeout)
+    {
+        new WebDriverWait(participant, timeout)
+                .until(new ExpectedCondition<Boolean>()
+                {
+                    public Boolean apply(WebDriver d)
+                    {
+                        WebElement el = d.findElement(By.xpath(xpath));
+
+                        return el != null &&
+                                el.getAttribute(attributeName)
+                                        .equals(attributeValue);
+                    }
+                });
     }
 
     /**
@@ -290,6 +386,23 @@ public class TestUtils
     }
 
     /**
+     * Waits until the given condition is fulfilled and fails the currently
+     * running test if this doesn't happen within {@code timeoutSeconds} seconds.
+     * @param participant the {@code WebDriver}.
+     * @param timeoutSeconds the time to wait for the element in seconds.
+     * @param condition the condition to be met.
+     * @param pollWaitTime configure waits between checks
+     */
+    public static void waitForCondition(WebDriver participant,
+                                        int timeoutSeconds,
+                                        ExpectedCondition<?> condition,
+                                        long pollWaitTime)
+    {
+        (new WebDriverWait(participant, timeoutSeconds, pollWaitTime))
+            .until(condition);
+    }
+
+    /**
      * Waits for the specified amount of <tt>time</tt> in milliseconds.
      * @param time to wait in milliseconds.
      * XXX Any reason we're not using Thread.sleep() instead of?
@@ -323,5 +436,63 @@ public class TestUtils
             return null;
 
         return jid.substring(ix + 1, jid.length());
+    }
+
+    /**
+     * Executes a specific (piece of) JavaScript script in the browser
+     * controlled by a specific {@code WebDriver} and returns the result of its
+     * execution as a {@code Boolean} value.
+     *
+     * @param webDriver the {@code WebDriver} which controls the browser in
+     * which the specified {@code script} is to be executed
+     * @param script the script to execute in the browser controlled by
+     * {@code webDriver}
+     * @return the result of the execution of {@code script} in the browser
+     * controlled by {@code webDriver} as a {@code Boolean} value
+     */
+    public static Boolean executeScriptAndReturnBoolean(
+        WebDriver webDriver,
+        String script)
+    {
+        Object o = ((JavascriptExecutor) webDriver).executeScript(script);
+
+        return (o instanceof Boolean) ? (Boolean) o : Boolean.FALSE;
+    }
+
+    /**
+     * Executes a specific (piece of) JavaScript script in the browser
+     * controlled by a specific {@code WebDriver} and returns the result of its
+     * execution as a {@code String} value.
+     *
+     * @param webDriver the {@code WebDriver} which controls the browser in
+     * which the specified {@code script} is to be executed
+     * @param script the script to execute in the browser controlled by
+     * {@code webDriver}
+     * @return the result of the execution of {@code script} in the browser
+     * controlled by {@code webDriver} as a {@code String} value
+     */
+    public static String executeScriptAndReturnString(
+        WebDriver webDriver,
+        String script)
+    {
+        Object o = ((JavascriptExecutor) webDriver).executeScript(script);
+
+        return (o instanceof String) ? (String) o : null;
+    }
+    
+    /**
+     * Executes a specific (piece of) JavaScript script in the browser
+     * controlled by a specific {@code WebDriver} 
+     *
+     * @param webDriver the {@code WebDriver} which controls the browser in
+     * which the specified {@code script} is to be executed
+     * @param script the script to execute in the browser controlled by
+     * {@code webDriver}
+     */
+    public static void executeScript(
+        WebDriver webDriver,
+        String script)
+    {
+        ((JavascriptExecutor) webDriver).executeScript(script);
     }
 }

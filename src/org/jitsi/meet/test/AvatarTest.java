@@ -40,6 +40,14 @@ public class AvatarTest
     public static String HASH = "dc47c9b1270a4a25a60bab7969e7632d";
 
     /**
+     * We store second participant avatar src when running
+     * test changeAvatarAndCheck, and in avatarWhenVideoMuted we restart the
+     * second participant and the value should be the same.
+     * Avatars should not change after a reload.
+     */
+    private static String secondParticipantAvatarSrc = null;
+
+    /**
      * Orders the tests.
      * @return the suite with order tests.
      */
@@ -65,6 +73,7 @@ public class AvatarTest
 
         // Start owner
         WebDriver owner = ConferenceFixture.getOwner();
+        String ownerResource = MeetUtils.getResourceJid(owner);
 
         // Mute owner video
         TestUtils.waitForDisplayedElementByXPath(
@@ -86,9 +95,8 @@ public class AvatarTest
         // Join with second participant
         ConferenceFixture.waitForSecondParticipantToConnect();
         WebDriver secondParticipant
-                = ConferenceFixture.getSecondParticipantInstance();
-
-        TestUtils.waitMillis(2000);
+                = ConferenceFixture.getSecondParticipant();
+        String secondPeerResource = MeetUtils.getResourceJid(secondParticipant);
 
         // Verify that the owner is muted from 2nd peer perspective
         MeetUIUtils.assertMuteIconIsDisplayed(
@@ -97,13 +105,16 @@ public class AvatarTest
                 true,
                 true, //video
                 "owner");
-        // Pin owner's thumbnail
-        SwitchVideoTests.clickOnRemoteVideoAndTest(secondParticipant);
+        // Pin owner's thumbnail, as owner is started muted for second
+        // participant, there is no video element, so don't use
+        // SwitchVideoTests.clickOnRemoteVideoAndTest which will check for
+        // remote video switching on large
+        MeetUIUtils.clickOnRemoteVideo(secondParticipant, ownerResource);
         // Check if owner's avatar is on large video now
         assertEquals(ownerLargeSrc, getLargeVideoSrc(secondParticipant));
 
         // Owner pins second participant's video
-        SwitchVideoTests.clickOnRemoteVideoAndTest(owner);
+        MeetUIUtils.clickOnRemoteVideo(owner, secondPeerResource);
         // Check if avatar is displayed on owner's local video thumbnail
         MeetUIUtils.assertLocalThumbnailShowsAvatar(owner);
         // Unmute - now local avatar should be hidden and local video displayed
@@ -136,13 +147,20 @@ public class AvatarTest
                 true, //video
                 "secondParticipant");
 
+        // we check whether avatar of second participant is same on both sides
+        // and we check whether it had changed after reloading the page
+        String avatarSecondParticipantSrc
+            = getLocalThumbnailSrc(secondParticipant);
+        assertEquals(secondParticipantAvatarSrc,
+            avatarSecondParticipantSrc);
+        assertEquals(secondParticipantAvatarSrc,
+            getThumbnailSrc(owner, secondPeerResource));
+
         // Start the third participant
         ConferenceFixture.waitForThirdParticipantToConnect();
         WebDriver thirdParticipant = ConferenceFixture.getThirdParticipant();
 
         String secondPeerSrc = getLocalThumbnailSrc(secondParticipant);
-        String secondPeerResource = MeetUtils.getResourceJid(secondParticipant);
-        String ownerResource = MeetUtils.getResourceJid(owner);
 
         // Pin local video and verify avatars are displayed
         MeetUIUtils.clickOnLocalVideo(thirdParticipant);
@@ -218,7 +236,7 @@ public class AvatarTest
 
         // Wait for the avatar element to be created
         TestUtils.waitForElementByXPath(
-            secondParticipant, ownerAvatarXPath, 5000);
+            secondParticipant, ownerAvatarXPath, 20);
 
         final String srcOneSecondParticipant =
             getSrcByXPath(secondParticipant, ownerAvatarXPath);
@@ -231,9 +249,7 @@ public class AvatarTest
         // set the value of the field through the jquery, or on FF we can
         // activate the key listener and m can mute the call and break tests
         ((JavascriptExecutor) owner)
-            .executeScript("$('#setEmail').val('" + EMAIL + "');");
-
-        owner.findElement(By.id("updateSettings")).click();
+            .executeScript("$('#setEmail').val('" + EMAIL + "').focusout();");
 
         //check if the local avatar in the settings menu has changed
         TestUtils.waitForCondition(owner, 5,
@@ -284,6 +300,14 @@ public class AvatarTest
             });
 
         MeetUIUtils.clickOnToolbarButton(owner, "toolbar_button_settings");
+
+        // we check whether avatar of second participant is same on both sides
+        // and we stored to check it after reload
+        secondParticipantAvatarSrc = getLocalThumbnailSrc(secondParticipant);
+        String secondParticipantResourceJid
+            = MeetUtils.getResourceJid(secondParticipant);
+        assertEquals(secondParticipantAvatarSrc,
+            getThumbnailSrc(owner, secondParticipantResourceJid));
 
         // the problem on FF where we can send keys to the input field,
         // and the m from the text can mute the call, check whether we are muted
@@ -360,6 +384,6 @@ public class AvatarTest
     private String getLargeVideoSrc(WebDriver perspective)
     {
         return getSrcByXPath(perspective,
-            "//div[@id='activeSpeaker']/img[@id='activeSpeakerAvatar']");
+            "//div[@id='dominantSpeaker']/img[@id='dominantSpeakerAvatar']");
     }
 }

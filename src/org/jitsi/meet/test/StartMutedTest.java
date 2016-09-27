@@ -73,13 +73,17 @@ public class StartMutedTest
 
         owner.findElement(By.id("startAudioMuted")).click();
         owner.findElement(By.id("startVideoMuted")).click();
-        owner.findElement(By.id("updateSettings")).click();
 
         WebDriver secondParticipant
             = ConferenceFixture.startSecondParticipant();
-        ConferenceFixture.waitForParticipantToJoinMUC(secondParticipant, 10);
-        ConferenceFixture.waitForIceCompleted(secondParticipant);
+        MeetUtils.waitForParticipantToJoinMUC(secondParticipant, 10);
+        MeetUtils.waitForIceConnected(secondParticipant);
 
+        // On the PR testing machine it seems that some audio is leaking before
+        // we mute. The audio is muted when 'session-initiate' is received, but
+        // seems like a bit of sound goes through in random cases. Let's wait
+        // here a bit, before checking the audio levels.
+        TestUtils.waitMillis(500);
         checkSecondParticipantForMute();
     }
 
@@ -91,27 +95,41 @@ public class StartMutedTest
     {
         System.err.println("Start configOptionsTest.");
 
-        new DisposeConference().testDispose();
+        ConferenceFixture.closeAllParticipants();
 
         WebDriver owner
             = ConferenceFixture.startOwner("config.startAudioMuted=1&" +
+                                           "config.debugAudioLevels=true&" +
                                            "config.startVideoMuted=1");
+        MeetUtils.waitForParticipantToJoinMUC(owner, 10);
+
         final WebDriver secondParticipant
             = ConferenceFixture.startSecondParticipant();
+        ((JavascriptExecutor) owner)
+            .executeScript(
+                "console.log('Start configOptionsTest, second participant: "
+                    + MeetUtils.getResourceJid(secondParticipant) + "');");
+        MeetUtils.waitForParticipantToJoinMUC(secondParticipant, 10);
 
-        ConferenceFixture.waitForParticipantToJoinMUC(owner, 10);
-        ConferenceFixture.waitForParticipantToJoinMUC(secondParticipant, 10);
+        MeetUtils.waitForIceConnected(owner);
+        MeetUtils.waitForIceConnected(secondParticipant);
 
-        ConferenceFixture.waitForIceCompleted(owner);
-        ConferenceFixture.waitForIceCompleted(secondParticipant);
+        // On the PR testing machine it seems that some audio is leaking before
+        // we mute. The audio is muted when 'session-initiate' is received, but
+        // seems like a bit of sound goes through in random cases. Let's wait
+        // here a bit, before checking the audio levels.
+        TestUtils.waitMillis(500);
 
         checkSecondParticipantForMute();
 
         // Unmute and see if the audio works
         MeetUIUtils.clickOnToolbarButton(
-            secondParticipant, "toolbar_button_mute");
+            owner, "toolbar_button_mute");
+        ((JavascriptExecutor) owner)
+            .executeScript(
+                "console.log('configOptionsTest, unmuted second participant');");
         MeetUIUtils.waitForAudioMuted(
-            owner, secondParticipant, "second peer", false /* unmuted */);
+            secondParticipant, owner, "owner", false /* unmuted */);
     }
 
     /**
@@ -160,20 +178,6 @@ public class StartMutedTest
      */
     public void restartParticipants()
     {
-        System.err.println("Start restartParticipants.");
-
-        ConferenceFixture.close(ConferenceFixture.getSecondParticipant());
-        ConferenceFixture.close(ConferenceFixture.getOwner());
-        TestUtils.waitMillis(1000);
-
-        WebDriver owner = ConferenceFixture.startOwner(null);
-        WebDriver secondParticipant
-            = ConferenceFixture.startSecondParticipant();
-
-        ConferenceFixture.waitForParticipantToJoinMUC(owner, 10);
-        ConferenceFixture.waitForParticipantToJoinMUC(secondParticipant, 10);
-
-        ConferenceFixture.waitForIceCompleted(owner);
-        ConferenceFixture.waitForIceCompleted(secondParticipant);
+        ConferenceFixture.restartParticipants();
     }
 }

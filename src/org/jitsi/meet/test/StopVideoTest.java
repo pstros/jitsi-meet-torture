@@ -45,6 +45,10 @@ public class StopVideoTest
 
         suite.addTest(new StopVideoTest("stopVideoOnOwnerAndCheck"));
         suite.addTest(new StopVideoTest("startVideoOnOwnerAndCheck"));
+        suite.addTest(
+            new StopVideoTest("stopAndStartVideoOnOwnerAndCheckStream"));
+        suite.addTest(
+            new StopVideoTest("stopAndStartVideoOnOwnerAndCheckEvents"));
         suite.addTest(new StopVideoTest("stopVideoOnParticipantAndCheck"));
         suite.addTest(new StopVideoTest("startVideoOnParticipantAndCheck"));
         suite.addTest(new StopVideoTest(
@@ -63,6 +67,10 @@ public class StopVideoTest
         MeetUIUtils.clickOnToolbarButton(ConferenceFixture.getOwner(),
             "toolbar_button_camera");
 
+        TestUtils.waitForElementByXPath(
+            ConferenceFixture.getOwner(),
+            "//span[@class='videoMuted']/i[@class='icon-camera-disabled']", 5);
+        
         TestUtils.waitForElementByXPath(
             ConferenceFixture.getSecondParticipant(),
             "//span[@class='videoMuted']/i[@class='icon-camera-disabled']", 5);
@@ -85,6 +93,75 @@ public class StopVideoTest
             "//span[starts-with(@id, 'participant_')]"
                 + "/span[@class='videoMuted']"
                 + "/i[@class='icon-camera-disabled']", 10);
+        
+        TestUtils.waitForElementNotPresentByXPath(
+            ConferenceFixture.getOwner(),
+            "//span[@id='localVideoContainer']"
+                + "/span[@class='videoMuted']"
+                + "/i[@class='icon-camera-disabled']", 10);
+    }
+
+    /**
+     * Checks if muting/unmuting of the local video stream affects
+     * large video of other participant.
+     */
+    public void stopAndStartVideoOnOwnerAndCheckStream()
+    {
+        System.err.println("Start stopAndStartVideoOnOwnerAndCheckStream.");
+
+        WebDriver owner = ConferenceFixture.getOwner();
+
+        // mute owner
+        stopVideoOnOwnerAndCheck();
+
+        // now second participant should be on large video
+        String secondParticipantVideoId = MeetUIUtils.getLargeVideoID(owner);
+
+        // unmute owner
+        startVideoOnOwnerAndCheck();
+
+        // check if video stream from second participant is still on large video
+        assertEquals("Large video stream id",
+            secondParticipantVideoId,
+            MeetUIUtils.getLargeVideoID(owner));
+    }
+
+    /**
+     * Checks if muting/unmuting remote video triggers TRACK_ADDED or
+     * TRACK_REMOVED events for the local participant.
+     */
+    public void stopAndStartVideoOnOwnerAndCheckEvents()
+    {
+        System.err.println("Start stopAndStartVideoOnOwnerAndCheckEvents.");
+
+        WebDriver secondParticipant = ConferenceFixture.getSecondParticipant();
+        JavascriptExecutor executor = (JavascriptExecutor) secondParticipant;
+
+        String listenForTrackRemoved = "APP.conference._room.addEventListener("
+            + "JitsiMeetJS.events.conference.TRACK_REMOVED,"
+            + "function () { APP._remoteRemoved = true; }"
+            + ");";
+        executor.executeScript(listenForTrackRemoved);
+
+        String listenForTrackAdded = "APP.conference._room.addEventListener("
+            + "JitsiMeetJS.events.conference.TRACK_ADDED,"
+            + "function () { APP._remoteAdded = true; }"
+            + ");";
+        executor.executeScript(listenForTrackAdded);
+
+        stopVideoOnOwnerAndCheck();
+        startVideoOnOwnerAndCheck();
+
+        TestUtils.waitMillis(1000);
+
+        assertFalse("Remote stream was removed",
+                    TestUtils.executeScriptAndReturnBoolean(
+                                secondParticipant,
+                                "return APP._remoteRemoved;"));
+        assertFalse("Remote stream was added",
+                    TestUtils.executeScriptAndReturnBoolean(
+                                secondParticipant,
+                                "return APP._remoteAdded;"));
     }
 
     /**
@@ -100,6 +177,10 @@ public class StopVideoTest
         TestUtils.waitForElementByXPath(
             ConferenceFixture.getOwner(),
             "//span[@class='videoMuted']/i[@class='icon-camera-disabled']", 5);
+        
+        TestUtils.waitForElementByXPath(
+            ConferenceFixture.getSecondParticipant(),
+            "//span[@class='videoMuted']/i[@class='icon-camera-disabled']", 5);
     }
 
     /**
@@ -114,6 +195,10 @@ public class StopVideoTest
 
         TestUtils.waitForElementNotPresentByXPath(
             ConferenceFixture.getOwner(),
+            "//span[@class='videoMuted']/i[@class='icon-camera-disabled']", 5);
+        
+        TestUtils.waitForElementNotPresentByXPath(
+            ConferenceFixture.getSecondParticipant(),
             "//span[@class='videoMuted']/i[@class='icon-camera-disabled']", 5);
     }
 
@@ -140,8 +225,8 @@ public class StopVideoTest
         WebDriver secondParticipant
             = ConferenceFixture.startSecondParticipant();
 
-        ConferenceFixture.waitForParticipantToJoinMUC(secondParticipant, 10);
-        ConferenceFixture.waitForIceCompleted(secondParticipant);
+        MeetUtils.waitForParticipantToJoinMUC(secondParticipant, 10);
+        MeetUtils.waitForIceConnected(secondParticipant);
 
         TestUtils.waitForElementByXPath(
             secondParticipant,
@@ -149,7 +234,7 @@ public class StopVideoTest
             5);
 
         // just debug messages
-        {
+        /*{
             String ownerJid = (String) ((JavascriptExecutor)
                 ConferenceFixture.getOwner())
                 .executeScript("return APP.xmpp.myJid();");
@@ -178,7 +263,7 @@ public class StopVideoTest
                     System.err.println("Stream muted : " + videoStreamMuted);
                 }
             }
-        }
+        }*/
 
         // now lets start video for owner
         startVideoOnOwnerAndCheck();

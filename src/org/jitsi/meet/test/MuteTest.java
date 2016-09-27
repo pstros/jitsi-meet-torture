@@ -151,7 +151,7 @@ public class MuteTest
         WebDriver owner = ConferenceFixture.getOwner();
 
         WebElement elem = owner.findElement(By.xpath(
-            "//span[@class='remotevideomenu']/i[@class='fa fa-angle-down']"));
+            "//div[@class='remotevideomenu']/i[@class='fa fa-angle-down']"));
 
         Actions action = new Actions(owner);
         action.moveToElement(elem);
@@ -222,10 +222,10 @@ public class MuteTest
         WebDriver secondParticipant
             = ConferenceFixture.startSecondParticipant();
 
-        ConferenceFixture.waitForParticipantToJoinMUC(
-                secondParticipant, 15);
+        MeetUtils.waitForParticipantToJoinMUC(
+            secondParticipant, 15);
 
-        ConferenceFixture.waitForIceCompleted(secondParticipant);
+        MeetUtils.waitForIceConnected(secondParticipant);
 
         MeetUIUtils.assertMuteIconIsDisplayed(
                 secondParticipant,
@@ -268,5 +268,11 @@ public class MuteTest
                 muted,
                 false, //audio
                 testeeName);
+        MeetUIUtils.assertMuteIconIsDisplayed(
+            testee,
+            testee,
+            muted,
+            false, //audio
+            testeeName);
     }
 }
