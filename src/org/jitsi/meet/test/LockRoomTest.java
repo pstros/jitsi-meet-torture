@@ -61,6 +61,8 @@ public class LockRoomTest
         suite.addTest(new LockRoomTest("enterParticipantInUnlockedRoom"));
         suite.addTest(new LockRoomTest(
             "updateLockedStateWhileParticipantInRoom"));
+        suite.addTest(new LockRoomTest(
+            "unlockAfterParticipantEnterWrongPassword"));
 
         return suite;
     }
@@ -87,7 +89,7 @@ public class LockRoomTest
     {
         WebDriver owner = ConferenceFixture.getOwner();
         List<WebElement> elems = owner.findElements(
-            By.xpath("//span[@id='toolbar']/a[@class='button "
+            By.xpath("//div[@id='extendedToolbar']/a[@class='button "
                 + "icon-security-locked']"));
 
         assertTrue("Icon must be unlocked when starting the test",
@@ -108,7 +110,7 @@ public class LockRoomTest
 
         TestUtils.waitForElementByXPath(
             owner,
-            "//span[@id='toolbar']/a[@class='button icon-security-locked']",
+            "//div[@id='extendedToolbar']/a[@class='button icon-security-locked']",
             5);
     }
 
@@ -124,7 +126,7 @@ public class LockRoomTest
 
         TestUtils.waitForElementByXPath(
             ConferenceFixture.getOwner(),
-            "//span[@id='toolbar']/a[@class='button icon-security-locked']",
+            "//div[@id='extendedToolbar']/a[@class='button icon-security-locked']",
             5);
 
         try
@@ -159,7 +161,7 @@ public class LockRoomTest
 
         TestUtils.waitForElementByXPath(
             secondParticipant,
-            "//span[@id='toolbar']/a[@class='button icon-security-locked']",
+            "//div[@id='extendedToolbar']/a[@class='button icon-security-locked']",
             5);
     }
 
@@ -179,7 +181,7 @@ public class LockRoomTest
         WebDriver owner = ConferenceFixture.getOwner();
 
         List<WebElement> elems = owner.findElements(
-            By.xpath("//span[@id='toolbar']/a[@class='button']/" +
+            By.xpath("//div[@id='extendedToolbar']/a[@class='button']/" +
                 "i[@class='icon-security']"));
 
         assertTrue("Icon must be locked when starting this test",
@@ -195,7 +197,7 @@ public class LockRoomTest
         cancelButton.click();
 
         elems = owner.findElements(
-            By.xpath("//span[@id='toolbar']/a[@class='button']/" +
+            By.xpath("//div[@id='extendedToolbar']/a[@class='button']/" +
                 "i[@class='icon-security']"));
 
         assertTrue("Icon must be locked after clicking cancel on remove key " +
@@ -226,7 +228,7 @@ public class LockRoomTest
         {
             TestUtils.waitForElementNotPresentByXPath(
                 owner,
-                "//span[@id='toolbar']/a[@class='button icon-security-locked']",
+                "//div[@id='extendedToolbar']/a[@class='button icon-security-locked']",
                 10);
         }
         catch (TimeoutException exc)
@@ -252,7 +254,7 @@ public class LockRoomTest
         MeetUtils.waitForSendReceiveData(secondParticipant);
 
         List<WebElement> elems = secondParticipant.findElements(
-                By.xpath("//span[@id='toolbar']/a[@class='button "
+                By.xpath("//div[@id='extendedToolbar']/a[@class='button "
                     + "icon-security-locked']"));
 
         assertTrue("Icon must be unlocked when starting the test",
@@ -265,18 +267,84 @@ public class LockRoomTest
      */
     public void updateLockedStateWhileParticipantInRoom()
     {
+        System.err.println("Start updateLockedStateWhileParticipantInRoom.");
+
         ownerLockRoom();
 
         TestUtils.waitForElementByXPath(
             ConferenceFixture.getSecondParticipant(),
-            "//span[@id='toolbar']/a[@class='button icon-security-locked']",
+            "//div[@id='extendedToolbar']/a[@class='button icon-security-locked']",
             5);
 
         ownerUnlockRoom();
 
         TestUtils.waitForElementNotPresentByXPath(
             ConferenceFixture.getSecondParticipant(),
-            "//span[@id='toolbar']/a[@class='button icon-security-locked']",
+            "//div[@id='extendedToolbar']/a[@class='button icon-security-locked']",
+            5);
+    }
+
+    /**
+     * Owner locks the room. Participant tries to enter using wrong password.
+     * Owner unlocks the room and Participant cancels the password prompt and
+     * he should enter of unlocked room.
+     */
+    public void unlockAfterParticipantEnterWrongPassword()
+    {
+        System.err.println("Start unlockAfterParticipantEnterWrongPassword.");
+
+        ConferenceFixture.close(ConferenceFixture.getSecondParticipant());
+
+        // just in case wait
+        TestUtils.waitMillis(1000);
+
+        ownerLockRoom();
+
+        WebDriver secondParticipant
+            = ConferenceFixture.startSecondParticipant();
+
+        TestUtils.waitForElementByXPath(
+            ConferenceFixture.getOwner(),
+            "//div[@id='extendedToolbar']/a[@class='button icon-security-locked']",
+            5);
+
+        try
+        {
+            MeetUtils.waitForParticipantToJoinMUC(secondParticipant);
+
+            fail("The second participant must not be able to join the room.");
+        }
+        catch(TimeoutException e)
+        {}
+
+        secondParticipant.findElement(
+            By.xpath("//input[@name='lockKey']")).sendKeys(ROOM_KEY + "1234");
+        secondParticipant.findElement(
+            By.name("jqi_state0_buttonspandatai18ndialogOkOkspan")).click();
+
+        try
+        {
+            MeetUtils.waitForParticipantToJoinMUC(secondParticipant);
+
+            fail("The second participant must not be able to join the room.");
+        }
+        catch(TimeoutException e)
+        {}
+
+        ownerUnlockRoom();
+
+        // just in case wait
+        TestUtils.waitMillis(500);
+
+        secondParticipant.findElement(
+            By.name("jqi_state0_buttonspandatai18ndialogCancelCancelspan"))
+            .click();
+
+        MeetUtils.waitForParticipantToJoinMUC(secondParticipant);
+
+        TestUtils.waitForElementNotPresentByXPath(
+            secondParticipant,
+            "//div[@id='extendedToolbar']/a[@class='button icon-security-locked']",
             5);
     }
 }
