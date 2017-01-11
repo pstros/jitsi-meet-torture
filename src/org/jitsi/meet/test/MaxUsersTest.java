@@ -72,6 +72,13 @@ public class MaxUsersTest
      */
     public void enterWithMaxParticipantsAndCheckDialog() 
     {
+        // Exit all participants
+        ConferenceFixture.closeAllParticipants();
+
+        // Start owner with custom roomname used to set the max occupants by prosody
+        WebDriver owner = ConferenceFixture.startOwner("", "MaxUsersTortureTest");
+        ConferenceFixture.waitForSecondParticipantToConnect();
+
         String maxUsersString = System.getProperty(MAX_USERS_PROP);
         if(maxUsersString != null)
         {
