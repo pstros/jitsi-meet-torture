@@ -75,8 +75,9 @@ public class MaxUsersTest
         String roomName = "MaxUsersTortureTest";
 
         // Exit all participants
-        ConferenceFixture.closeAllParticipants();
-
+        ConferenceFixture.close(ConferenceFixture.getOwnerInstance());
+        ConferenceFixture.quit(ConferenceFixture.getSecondParticipant());
+        
         // Start owner with custom roomname used to set the max occupants by prosody
         WebDriver owner = ConferenceFixture.startOwner(null, roomName);
 
