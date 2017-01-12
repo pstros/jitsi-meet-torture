@@ -713,7 +713,10 @@ public class ConferenceFixture
     }
     
     /**
-     *
+     * Starts the participant reusing the already generated room name.
+     * @param frament A string to be added to the URL as a parameter (i.e.
+     * prefixed with a '&').
+     * @return the {@code WebDriver} which was started.
      */
      public static WebDriver startParticipant(String fragment)
      {
@@ -721,7 +724,7 @@ public class ConferenceFixture
      }
 
     /**
-     * Starts the participant reusing the already generated room name.
+     * Starts the participant with a parameter, if given.
      * Checks if instance is created do not create it again, if its just not in
      * the room just join there.
      * @param fragment A string to be added to the URL as a parameter (i.e.
