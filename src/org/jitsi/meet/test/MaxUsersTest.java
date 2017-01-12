@@ -115,6 +115,7 @@ public class MaxUsersTest
             {
                 // Clean up the participants in participants array
                 quitParticipants(participants);
+                ConferenceFixture.restartParticipants();
             }
 
             if (failed)
