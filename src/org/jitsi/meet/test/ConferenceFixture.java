@@ -713,17 +713,27 @@ public class ConferenceFixture
     }
     
     /**
+     *
+     */
+     public static WebDriver startParticipant(String fragment)
+     {
+         return startParticipant(fragment, null);
+     }
+
+    /**
      * Starts the participant reusing the already generated room name.
      * Checks if instance is created do not create it again, if its just not in
      * the room just join there.
      * @param fragment A string to be added to the URL as a parameter (i.e.
      * prefixed with a '&').
+     * @param roomParameter Extra parameter to add on to the generated room name
      * @return the {@code WebDriver} which was started.
      * NOTE: Uses the browser type set for the owner.
      */
-    public static WebDriver startParticipant(String fragment)
+    public static WebDriver startParticipant(String fragment, String roomParameter)
     {
         System.err.println("Starting participant");
+        String roomName = currentRoomName;
 
         BrowserType browser
             = BrowserType.valueOfString(
@@ -732,7 +742,10 @@ public class ConferenceFixture
         WebDriver participant = 
             startDriver(browser, Participant.otherParticipantDriver);
 
-        openRoom(participant, currentRoomName, fragment, browser);
+        if (roomParameter != null)
+            roomName += roomParameter;
+
+        openRoom(participant, roomName, fragment, browser);
 
         ((JavascriptExecutor) participant)
             .executeScript("document.title='Participant'");

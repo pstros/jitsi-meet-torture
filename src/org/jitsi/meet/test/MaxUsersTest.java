@@ -72,12 +72,13 @@ public class MaxUsersTest
      */
     public void enterWithMaxParticipantsAndCheckDialog() 
     {
+        String roomName = "MaxUsersTortureTest";
+
         // Exit all participants
         ConferenceFixture.closeAllParticipants();
 
         // Start owner with custom roomname used to set the max occupants by prosody
-        WebDriver owner = ConferenceFixture.startOwner("", "MaxUsersTortureTest");
-        ConferenceFixture.waitForSecondParticipantToConnect();
+        WebDriver owner = ConferenceFixture.startOwner(null, roomName);
 
         String maxUsersString = System.getProperty(MAX_USERS_PROP);
         if(maxUsersString != null)
@@ -85,18 +86,19 @@ public class MaxUsersTest
             MAX_USERS = Integer.parseInt(maxUsersString);
         }
             
-        if(MAX_USERS > 2)
+        if(MAX_USERS > 1)
         {
             boolean failed = false;
-            // Assuming we have 2 participants already started we have to
-            // start MAX_USERS - 2 participants more to have MAX_USERS
+            // Assuming we have 1 participant already started we have to
+            // start MAX_USERS - 1 participants more to have MAX_USERS
             // participants in the call in order to exceed the limit.
-            WebDriver[] participants = new WebDriver[MAX_USERS - 2];
+            WebDriver[] participants = new WebDriver[MAX_USERS - 1];
             try
             {
                 for(int i = 0; i < participants.length; i++)
                 {
-                    participants[i] = ConferenceFixture.startParticipant(null);
+                    // Participants join the custom room created by the owner
+                    participants[i] = ConferenceFixture.startParticipant(null, roomName);
                 }
                 // Check if the error dialog is displayed for
                 // the last participant.
