@@ -129,6 +129,11 @@ public class ConferenceFixture
         = "browser.remote.resource.path";
 
     /**
+     * The property file when using auth
+     */
+    public static final String AUTH_PROP = "jitsi-meet.auth.properties";
+
+    /**
      * The available browser type value.
      */
     public enum BrowserType
@@ -332,6 +337,13 @@ public class ConferenceFixture
 
         ((JavascriptExecutor) owner)
             .executeScript("document.title='Owner'");
+
+        String authProps = System.getProperty(AUTH_PROP);
+        if (authProps != null)
+        {
+          AuthSetupConference asc = new AuthSetupConference("authenticate");
+          asc.authenticate();
+        }
 
         return owner;
     }
@@ -755,7 +767,7 @@ public class ConferenceFixture
     }
 
     /**
-     * Starts the participant with a parameter, if given.
+     * Starts the participant reusing the already generated room name.
      * Checks if instance is created do not create it again, if its just not in
      * the room just join there.
      * @param fragment A string to be added to the URL as a parameter (i.e.
