@@ -72,52 +72,49 @@ public class MaxUsersTest
      */
     public void enterWithMaxParticipantsAndCheckDialog() 
     {
-        String roomName = "MaxUsersTortureTest";
-
-        // Exit all participants
-        ConferenceFixture.close(ConferenceFixture.getOwnerInstance());
-        ConferenceFixture.quit(ConferenceFixture.getSecondParticipant());
-        
-        // Start owner with custom roomname used to set the max occupants by prosody
-        WebDriver owner = ConferenceFixture.startOwner(null, roomName);
-
         String maxUsersString = System.getProperty(MAX_USERS_PROP);
         if(maxUsersString != null)
         {
             MAX_USERS = Integer.parseInt(maxUsersString);
         }
-
-        boolean failed = false;
-
-        // The owner has already been started, so MAX - 1 users are needed to hit the 
-        // occupant limit of the room
-        WebDriver[] participants = new WebDriver[MAX_USERS - 1];
-        try
+            
+        if(MAX_USERS > 2)
         {
-            for(int i = 0; i < participants.length; i++)
+            boolean failed = false;
+            // Assuming we have 2 participants already started we have to
+            // start MAX_USERS - 2 participants more to have MAX_USERS
+            // participants in the call in order to exceed the limit.
+            WebDriver[] participants = new WebDriver[MAX_USERS - 2];
+            try
             {
-                // Participants join the custom room created by the owner
-                participants[i] = ConferenceFixture.startParticipant(null, roomName);
+                for(int i = 0; i < participants.length; i++)
+                {
+                    participants[i] = ConferenceFixture.startParticipant(null);
+                }
+                // Check if the error dialog is displayed for
+                // the last participant.
+                int lastParticipantIdx = participants.length - 1;
+                checkDialog(participants[lastParticipantIdx]);
+            } 
+            catch(TimeoutException timeout)
+            {
+                // There was no dialog, so we fail the test !
+                failed = true;
             }
-            // Check if the error dialog is displayed for the last participant.
-            int lastParticipantIdx = participants.length - 1;
-            checkDialog(participants[lastParticipantIdx]);
-        } 
-        catch(TimeoutException timeout)
-        {
-            // There was no dialog, so we fail the test !
-            failed = true;
-        }
-        finally
-        {
-            // Clean up the participants in participants array
-            quitParticipants(participants);
-            ConferenceFixture.restartParticipants();
-        }
+            finally
+            {
+                // Clean up the participants in participants array
+                quitParticipants(participants);
+            }
 
-        if (failed)
+            if (failed)
+            {
+                fail("There was no error dialog.");
+            }
+        }
+        else
         {
-            fail("There was no error dialog.");
+            checkDialog(ConferenceFixture.getSecondParticipant());
         }
     }
 
