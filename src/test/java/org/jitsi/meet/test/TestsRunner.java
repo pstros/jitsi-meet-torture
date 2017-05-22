@@ -184,9 +184,9 @@ public class TestsRunner
         // SetupConference and DisposeConference must always be run exactly
         // once in the beginning and end of the tests. They could potentially be
         // moved to setUp() and tearDown().
-        while (testsToRun.remove(SetupConference.class.getSimpleName()));
+        while (testsToRun.remove(AuthSetupConference.class.getSimpleName()));
         while (testsToRun.remove(DisposeConference.class.getSimpleName()));
-        testsToRun.add(0, SetupConference.class.getSimpleName());
+        testsToRun.add(0, AuthSetupConference.class.getSimpleName());
         testsToRun.add(DisposeConference.class.getSimpleName());
 
         return testsToRun;

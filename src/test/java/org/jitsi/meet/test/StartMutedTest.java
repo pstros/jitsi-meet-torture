@@ -124,12 +124,12 @@ public class StartMutedTest
 
         // Unmute and see if the audio works
         MeetUIUtils.clickOnToolbarButton(
-            owner, "toolbar_button_mute");
+            secondParticipant, "toolbar_button_mute");
         ((JavascriptExecutor) owner)
             .executeScript(
                 "console.log('configOptionsTest, unmuted second participant');");
         MeetUIUtils.waitForAudioMuted(
-            secondParticipant, owner, "owner", false /* unmuted */);
+            owner, secondParticipant, "second peer", false /* unmuted */);
     }
 
     /**

@@ -338,13 +338,6 @@ public class ConferenceFixture
         ((JavascriptExecutor) owner)
             .executeScript("document.title='Owner'");
 
-        String authProps = System.getProperty(AUTH_PROP);
-        if (authProps != null)
-        {
-          AuthSetupConference asc = new AuthSetupConference("authenticate");
-          asc.authenticate();
-        }
-
         return owner;
     }
 

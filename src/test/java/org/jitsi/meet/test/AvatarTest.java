@@ -87,9 +87,16 @@ public class AvatarTest
                 ownerLargeSrc.startsWith(ownerThumbSrc));
 
         // Join with second participant
-        ConferenceFixture.waitForSecondParticipantToConnect();
+        // This will not work since owner is muted download will be zero
+        // waitForSendReceiveData
+        // ConferenceFixture.waitForSecondParticipantToConnect();
         WebDriver secondParticipant
                 = ConferenceFixture.getSecondParticipant();
+        assertNotNull(secondParticipant);
+        MeetUtils.waitForParticipantToJoinMUC(secondParticipant, 10);
+        MeetUtils.waitForIceConnected(secondParticipant);
+        TestUtils.waitMillis(5000);
+
         String secondPeerResource = MeetUtils.getResourceJid(secondParticipant);
 
         // Verify that the owner is muted from 2nd peer perspective
@@ -159,8 +166,13 @@ public class AvatarTest
             getThumbnailSrc(owner, secondPeerResource));
 
         // Start the third participant
-        ConferenceFixture.waitForThirdParticipantToConnect();
+        // This will not work since no one is sending video here
+        // ConferenceFixture.waitForThirdParticipantToConnect();
         WebDriver thirdParticipant = ConferenceFixture.getThirdParticipant();
+        assertNotNull(thirdParticipant);
+        MeetUtils.waitForParticipantToJoinMUC(thirdParticipant, 10);
+        MeetUtils.waitForIceConnected(thirdParticipant);
+        TestUtils.waitMillis(5000);
 
         String secondPeerSrc = getLocalThumbnailSrc(secondParticipant);
 
