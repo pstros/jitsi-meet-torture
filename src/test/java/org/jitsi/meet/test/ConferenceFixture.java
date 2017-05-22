@@ -129,6 +129,11 @@ public class ConferenceFixture
         = "browser.remote.resource.path";
 
     /**
+     * The property file when using auth
+     */
+    public static final String AUTH_PROP = "jitsi-meet.auth.properties";
+
+    /**
      * The available browser type value.
      */
     public enum BrowserType
@@ -395,7 +400,7 @@ public class ConferenceFixture
         // disables animations
         ((JavascriptExecutor) participant)
             .executeScript("try { jQuery.fx.off = true; } catch(e) {}");
-        
+
         // disables mute participant dialog
         ((JavascriptExecutor) participant)
             .executeScript("if(window.localStorage)"
@@ -753,7 +758,7 @@ public class ConferenceFixture
 
         return thirdParticipant;
     }
-    
+
     /**
      * Starts the participant reusing the already generated room name.
      * Checks if instance is created do not create it again, if its just not in
@@ -770,8 +775,8 @@ public class ConferenceFixture
         BrowserType browser
             = BrowserType.valueOfString(
                 System.getProperty(BROWSER_OWNER_NAME_PROP));
-        
-        WebDriver participant = 
+
+        WebDriver participant =
             startDriver(browser,
                 Participant.otherParticipantDriver,
                 Boolean.getBoolean(BROWSER_OWNER_ISREMOTE_NAME_PROP));
@@ -783,10 +788,10 @@ public class ConferenceFixture
 
         return participant;
     }
-    
+
     /**
      * Opens URL using new WebDriver.
-     * @param URL the URL to be opened 
+     * @param URL the URL to be opened
      * @return the {@code WebDriver} which was started.
      * NOTE: Uses the browser type set for the owner.
      */
@@ -797,7 +802,7 @@ public class ConferenceFixture
         BrowserType browser
             = BrowserType.valueOfString(
                 System.getProperty(BROWSER_OWNER_NAME_PROP));
-        
+
         WebDriver driver = startDriver(browser,
             Participant.otherDriver,
             Boolean.getBoolean(BROWSER_OWNER_ISREMOTE_NAME_PROP));

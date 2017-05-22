@@ -119,16 +119,21 @@ public class AuthSetupConference
         Enumeration<Test> parentTests = parentSuite.tests();
         TestSuite suite = new TestSuite();
 
+        String authenticationProperties
+                = System.getProperty(PROPERTIES_FILE_PNAME);
+
         // We want to insert "authenticate" after "startOwner"
         suite.addTest(parentTests.nextElement()); // startOwner
-        suite.addTest(new AuthSetupConference("authenticate"));
-
+        // Only authenicate if we have a credentails property file
+        if (authenticationProperties != null)
+        {
+            suite.addTest(new AuthSetupConference("authenticate"));
+        }
         // The rest of the tests
         while (parentTests.hasMoreElements())
         {
-            suite.addTest(parentTests.nextElement());
+           suite.addTest(parentTests.nextElement());
         }
-
         return suite;
     }
 
@@ -184,7 +189,6 @@ public class AuthSetupConference
         String authButtonName = "jqi_state0_" +
                 "buttonspandatai18ndialogIamHostIamthehostspan";
 
-
         TestUtils.waitForElementByXPath(
             moderator, "//button[@name='" + authButtonName + "']", 15);
 
@@ -196,19 +200,18 @@ public class AuthSetupConference
         // use the default username/password authentication
         if (idpSelectListId == null && idpName == null && idpSubmitBtnName == null)
         {
-          usernamePasswordAuth(moderator, username, password);
+            System.err.println("shibboleth provider not set.  Attempting basic user/password auth");
+            usernamePasswordAuth(moderator, username, password);
         }
-        else
-        {
-          shibbolethIdpSelect(
-            moderator, idpSelectListId, idpName, idpSubmitBtnName);
+        else {
+           shibbolethIdpSelect(
+              moderator, idpSelectListId, idpName, idpSubmitBtnName);
 
-          // IdpLogin
-          shibbolethIdpLogin(
-            moderator, usernameInputId, passwordInputId, loginBtnName,
-            username,  password);
-        }
-
+           // IdpLogin
+           shibbolethIdpLogin(
+              moderator, usernameInputId, passwordInputId, loginBtnName,
+              username,  password);
+       }
     }
 
     private void shibbolethIdpSelect(WebDriver participant,
@@ -226,28 +229,6 @@ public class AuthSetupConference
         submit.click();
     }
 
-    private void usernamePasswordAuth(WebDriver participant,
-                                     String username,
-                                     String password)
-    {
-      String authLoginButtonName = "jqi_login_" +
-            "buttonspandatai18ndialogOkOkspan";
-
-      TestUtils.waitForElementByXPath(
-          participant, "//input[@name='username']", 15);
-
-      // The dialog creates multiple elements of the password required dialog box
-      // so for now we will assume the second element is correct one
-      List<WebElement> usernameElem = participant.findElements(By.cssSelector("[name='username']"));
-      List<WebElement> passwordElem = participant.findElements(By.cssSelector("[name='password']"));
-
-      usernameElem.get(1).sendKeys(username);
-      passwordElem.get(1).sendKeys(password);
-
-      List <WebElement> submit = participant.findElements(By.name(authLoginButtonName));
-      submit.get(1).click();
-    }
-
     private void shibbolethIdpLogin( WebDriver participant,
                                      String    usernameInputId,
                                      String    passwordInputId,
@@ -257,7 +238,6 @@ public class AuthSetupConference
     {
         TestUtils.waitForElementByXPath(
             participant, "//input[@id='" + usernameInputId + "']", 15);
-
 
         WebElement usernameElem
             = participant.findElement(By.id(usernameInputId));
@@ -272,4 +252,45 @@ public class AuthSetupConference
 
         submit.click();
     }
+
+    private void usernamePasswordAuth(WebDriver participant,
+                                     String username,
+                                     String password)
+    {
+       String loginButtonName = "jqi_login_" +
+                "buttonspandatai18ndialogOkOkspan";
+
+       TestUtils.waitForElementByXPath(
+          participant, "//input[@name='username']", 15);
+
+       List<WebElement> usernameElem = participant.findElements(By.cssSelector("input[name=username]"));
+       List<WebElement> passwordElem = participant.findElements(By.cssSelector("input[name=password]"));
+       List<WebElement> loginButtonElem = participant.findElements(By.name(loginButtonName));
+
+       for (int i = 0; i < usernameElem.size(); i++) {
+           if (usernameElem.get(i).isDisplayed())
+           {
+               usernameElem.get(i).sendKeys(username);
+               break;
+           }
+       }
+
+       for (int i = 0; i < passwordElem.size(); i++) {
+           if (passwordElem.get(i).isDisplayed())
+           {
+               passwordElem.get(i).sendKeys(password);
+               break;
+           }
+       }
+
+       for (int i = 0; i < loginButtonElem.size(); i++) {
+           if (loginButtonElem.get(i).isDisplayed())
+           {
+               loginButtonElem.get(i).click();
+               break;
+           }
+       }
+
+    }
+
 }
