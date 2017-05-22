@@ -1,4 +1,4 @@
-FROM java:7-jdk-alpine
+FROM java:8-jdk-alpine
 
 # this needs to be taken out. Its just faking out ant right now
 ENV DISPLAY=:2
@@ -12,5 +12,6 @@ ENV ANT_HOME /opt/ant
 ENV PATH ${PATH}:/opt/ant/bin
 
 COPY . /torture
-
 WORKDIR /torture
+
+ENTRYPOINT ["ant", "test"] 
